@@ -1,0 +1,9 @@
+# Copy to config/paths.local.toml (ignored). Paths resolve relative to this file.
+# Use an existing local dataset; the audit never downloads data.
+raw_dir = "../data/raw/verified_dataset"
+report_dir = "../reports"
+cache_dir = "../.cache/raw-audit"
+memory_limit = "3GB"
+threads = 2
+sample_size = 5
+expected_sha256 = "4beecfca926a472081b70bcc50c2a20193756a90f9e8dc84336076e86b72e3c3"

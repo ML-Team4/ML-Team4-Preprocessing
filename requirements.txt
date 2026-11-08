@@ -1,0 +1,2 @@
+# Stage 1 only. Python >=3.11; no pandas/full dense arrays required.
+duckdb==1.4.4
