@@ -1,6 +1,6 @@
 # ML Team4 공통 데이터 전처리
 
-인기 편향 완화를 통한 개인화 음악 추천 프로젝트의 공통 데이터 저장소다. **현재는 1단계 점검과 2-2 입력 검증·공통 정제·UTC 시간 분할 구현을 완료했다.** 최종 학습 행렬·매핑·평가 파일과 전달 패키지 생성은 다음 단계다. Item-based·Implicit MF 구현, 보정 가중치, 성능 평가 코드와 UI는 이 저장소의 이번 작업 범위에 포함하지 않는다.
+인기 편향 완화를 통한 개인화 음악 추천 프로젝트의 공통 데이터 저장소다. 현재는 입력 검증·공통 정제·UTC 시간 분할 구현까지 완료했다. 최종 학습 행렬·매핑·평가 파일과 전달 패키지 생성은 다음 단계다.
 
 ## 출처와 이용 조건
 
@@ -55,13 +55,8 @@ python scripts/check_model_readiness.py --config config/paths.local.toml
 python -m unittest discover -s tests -v
 ```
 
-두 점검 모두 원본을 읽기만 한다. 예시 설정의 `report_dir = "../reports"` 기준으로 `audit_raw_data.py`는 성공 시 `reports/raw-data-audit.json`과 `reports/raw-data-audit.md`를 갱신한다. `check_model_readiness.py`는 `reports/model-readiness-diagnostics.json`만 갱신하며 `reports/model-readiness-review.md`를 자동 생성하지 않는다. 실패하면 종료 오류를 확인하고 이전 성공 보고서를 새 실행 결과로 해석하지 않는다. 임시 정규화·중복·집계 테이블은 cache_dir 아래 임시 DuckDB에서만 만들고 정상 종료/일반 예외 시 삭제한다. 강제 종료로 남은 캐시도 Git 제외 대상이다. 최종 Parquet·CSR·평가 정답을 만들지 않는다.
-
-두 JSON은 로컬 생성물로 Git에서 제외되므로 새 clone에는 없다. Git에서는 [원본 점검 보고서](reports/raw-data-audit.md)와 [모델 적합성 검토](reports/model-readiness-review.md)를 읽는다. JSON이 없어도 이 보고서들과 [전처리 계획](docs/preprocessing-plan.md)·[데이터 계약](docs/data-contract.md)으로 2단계 준비를 시작할 수 있다. 상세 기계 판독 통계가 필요할 때 원본 여섯 파일을 확보하고 위 명령으로 재생성한다.
-
 과거 실행 결과·해시 기록을 보존하며 재실행하려면 기존 보고서를 별도 보관하거나 로컬 설정의 `report_dir`을 다른 로컬 폴더로 지정한다. 후자의 경우 같은 명령으로 해당 폴더에 새 결과를 쓰며, 기존 `reports/` 기록은 유지된다. 실행 시간·환경·코드 추적은 새 실행 기준으로 기록되므로 과거 실행 기록을 소급해 바꾸지 않는다.
-
-memory_limit=3GB, threads=2, sample_size=5가 기본이다. 임시 디스크 여유도 필요하며 DuckDB spill 제한은 12GiB다(임시 DB 크기는 별도). 메모리 설정은 프로세스 전체의 엄격한 상한이 아니다. 대량 행을 Python 리스트나 pandas로 가져오지 않는다. sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계없다. 점검은 약 152만 학습 항목 전체를 유지한다.
+sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계없다. 점검은 약 152만 학습 항목 전체를 유지한다.
 
 ## 직접 확인한 주요 결과
 
@@ -108,4 +103,4 @@ memory_limit=3GB, threads=2, sample_size=5가 기본이다. 임시 디스크 여
 
 코드·문서와 Markdown 보고서를 Git에 저장한다. 원본·중간·전처리·모델 출력·캐시·개인 경로 설정·가상환경은 .gitignore로 제외한다. 진단 JSON은 `/reports/raw-data-audit.json`, `/reports/model-readiness-diagnostics.json` 두 경로만 정확히 제외하며 다른 JSON이나 향후 `dataset_manifest.json`을 확장자로 일괄 제외하지 않는다. 데이터 공유 공간과 최종 다운로드 경로는 아직 확정하지 않았다.
 
-추가 적합성 검사도 동일한 고정 전처리 규칙을 사용하고 임시 테이블은 삭제한다. 모델 학습이나 추천 성능을 측정하지 않으며, 학습 연결 구조·정답의 신호 유무·지표의 수학적 상한·배열 메모리를 계산한다. 로컬 결과 JSON은 자동 생성되고 Git의 검토 Markdown은 그 결과와 공식 문헌을 해석한 문서다.
+추가 적합성 검사도 동일한 고정 전처리 규칙을 사용하고 임시 테이블은 삭제한다.
