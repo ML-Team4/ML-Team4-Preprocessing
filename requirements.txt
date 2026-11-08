@@ -1,2 +1,2 @@
-# Stage 1 only. Python >=3.11; no pandas/full dense arrays required.
+# Stage 1 audits and stage 2 event cleaning. Python >=3.11; no pandas/dense arrays.
 duckdb==1.4.4

@@ -1,6 +1,6 @@
 # ML Team4 공통 데이터 전처리
 
-인기 편향 완화를 통한 개인화 음악 추천 프로젝트의 공통 데이터 저장소다. **현재는 1단계 원본 점검과 전처리 기준 정리만 완료했다.** 전체 전처리 파일 생성은 2단계다. Item-based·Implicit MF 구현, 보정 가중치, 성능 평가 코드와 UI는 이 저장소의 이번 작업 범위에 포함하지 않는다.
+인기 편향 완화를 통한 개인화 음악 추천 프로젝트의 공통 데이터 저장소다. **현재는 1단계 점검과 2-2 입력 검증·공통 정제·UTC 시간 분할 구현을 완료했다.** 최종 학습 행렬·매핑·평가 파일과 전달 패키지 생성은 다음 단계다. Item-based·Implicit MF 구현, 보정 가중치, 성능 평가 코드와 UI는 이 저장소의 이번 작업 범위에 포함하지 않는다.
 
 ## 출처와 이용 조건
 
@@ -79,10 +79,26 @@ memory_limit=3GB, threads=2, sample_size=5가 기본이다. 임시 디스크 여
 
 위 집계는 최종 전처리 전달본 통계가 아니다. 과거 수치와의 차이를 공백 규칙 재현으로 확인했다. 세부 샘플·제외 규모·해시·실행 시간과 RSS는 보고서에 있다. 사용자별 정상 반복을 보존하며 저인기·과도한 청취·모호한 비음악 콘텐츠를 근거 없이 제거하지 않는다.
 
+## 2-2 입력 검증·정제·UTC 분할
+
+[Issue #1](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/1)은 `work/preprocessing`에서 진행한다. 1단계의 정규화 함수와 고정 시간 경계를 재사용하며 원본 6개 파일의 크기·SHA256, 정확한 Parquet 스키마와 선정 사용자 5,000명을 검증한다.
+
+```bash
+.venv/bin/python scripts/preprocess_events.py --config config/paths.local.toml --inputs-only
+.venv/bin/python scripts/preprocess_events.py --config config/paths.local.toml --report .cache/preprocessing/cleaning-split-recheck.md
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+재실행 보고서는 새 파일명을 사용한다. 기존 보고서는 덮어쓰지 않는다. 전체 실행에서 원본 9,350,628행 = 중복 초과 537,575행 + train 6,623,584건 + validation 1,104,514건 + test 1,084,955건을 확인했다. 결측·기간 밖·빈 이름 제외는 각각 0건이다. 품질 진단은 train 기준의 별도 관계에서 집계하며 사건 삭제·계정 병합을 하지 않는다.
+
+[실행 보고서](reports/cleaning-split-validation.md)에 실제 입력 해시·집계·자원을 기록했다. 다음 생성 코드에서 사용할 함수·임시 관계와 13개 검사 범위는 [재사용 안내](docs/cleaning-split-guide.md)에 있다. 현재 단계에서는 최종 Parquet·CSR·평가 파일·manifest를 생성하지 않는다.
+
 ## 문서 안내
 
 - [원본 점검 결과 (Markdown)](reports/raw-data-audit.md)
 - [전처리 타당성과 모델 적합성 추가 검토 (Markdown)](reports/model-readiness-review.md)
+- [2-2 입력 검증·정제·분할 실행 보고서](reports/cleaning-split-validation.md)
+- [2-2 실행과 다음 단계 코드 재사용](docs/cleaning-split-guide.md)
 - [공통 전처리 기준](docs/preprocessing-plan.md)
 - [파일·ID·행렬·평가 데이터 규격](docs/data-contract.md)
 - [팀 전달 설명 초안](docs/data-preprocessing-handoff.md)
