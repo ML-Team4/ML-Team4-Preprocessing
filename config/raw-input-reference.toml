@@ -1,0 +1,26 @@
+# 1단계 커밋 c28cdd1의 reports/raw-data-audit.md에서 확정한 원본 입력 기준.
+# 점검 보고서를 다시 생성해도 이 파일은 갱신하지 않는다.
+
+[files."listens_8weeks_5000users.parquet"]
+bytes = 144828609
+sha256 = "4beecfca926a472081b70bcc50c2a20193756a90f9e8dc84336076e86b72e3c3"
+
+[files."README.txt"]
+bytes = 5183
+sha256 = "fd8104ccfd16875bac897640464d7927ffce8c2057016a53cd6b9bf5625d5e7e"
+
+[files."selected_users.csv"]
+bytes = 76347
+sha256 = "6ca4013d636ac7c16aa52ce6fa1e9fa670df1a4aca8eda64ad9f30f45cbe94a5"
+
+[files."source_manifest.json"]
+bytes = 306507
+sha256 = "7e0af4eb5328ab661e66efc7bf9378d74cb8c8e1a377d3792ac93889765ec526"
+
+[files."verified_8week_summary.json"]
+bytes = 7606
+sha256 = "ac897b3ee55bfd6aa2145dfd16c3eb7705604f6cbaa73646cafdc33d980a445f"
+
+[files."COPYING"]
+bytes = 6390
+sha256 = "75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea"

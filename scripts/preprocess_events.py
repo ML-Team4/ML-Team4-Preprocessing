@@ -35,28 +35,23 @@ SPLITS = (
     ("test", base.VALIDATION_END, base.WINDOW_END),
 )
 EXCLUSION_REASONS = ("missing_required", "outside_window", "empty_name", "duplicate_excess")
-REFERENCE = Path(__file__).resolve().parents[1] / "reports/raw-data-audit.md"
+REFERENCE = Path(__file__).resolve().parents[1] / "config/raw-input-reference.toml"
 
 
 def read_reference(path: Path = REFERENCE) -> dict:
-    """Git의 Markdown에 보존한 6개 입력 기준값을 읽는다. 로컬 JSON은 불필요하다."""
-    text = path.read_text(encoding="utf-8")
-    heading = "## 입력 파일 해시와 불변성\n"
-    if text.count(heading) != 1:
-        raise ValueError("Input reference section is missing or ambiguous")
-    section = text.split(heading, 1)[1].split("\n## ", 1)[0]
-    result = {}
-    for line in section.splitlines():
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) != 4 or not cells[0].startswith('"'):
-            continue
-        name, size, digest = json.loads(cells[0]), int(cells[1]), json.loads(cells[2])
-        if name in result or size < 0 or not re.fullmatch(r"[0-9a-f]{64}", digest):
-            raise ValueError("Invalid or duplicate input reference record")
-        result[name] = {"bytes": size, "sha256": digest}
-    if set(result) != set(base.REQUIRED_FILES):
+    """자동 생성 보고서와 분리한 1단계 입력 기준값을 읽는다."""
+    with path.open("rb") as stream:
+        files = tomllib.load(stream).get("files")
+    if not isinstance(files, dict) or set(files) != set(base.REQUIRED_FILES):
         raise ValueError("Input reference must describe exactly the six required files")
-    return result
+    for name, record in files.items():
+        if not isinstance(record, dict) or set(record) != {"bytes", "sha256"}:
+            raise ValueError(f"Invalid input reference record: {name}")
+        size, digest = record["bytes"], record["sha256"]
+        if type(size) is not int or size < 0 or not isinstance(digest, str) or not re.fullmatch(
+                r"[0-9a-f]{64}", digest):
+            raise ValueError(f"Invalid bytes/SHA256 in input reference: {name}")
+    return files
 
 
 def fingerprint_inputs(raw_dir: Path) -> list[dict]:
@@ -137,6 +132,7 @@ def build_clean_events(con) -> dict:
     # encode는 UTF-8 BLOB이므로 입력 순서나 문자열 collation에 의존하지 않는다.
     con.execute(f"""CREATE TABLE clean_events AS WITH chosen AS (
         SELECT user_id, listened_at, artist_key, recording_key,
+            count(*) AS source_rows,
             arg_min(struct_pack(artist_name := artist_name, recording_name := recording_name),
                 struct_pack(artist_bytes := encode(artist_name),
                     recording_bytes := encode(recording_name))) AS original
@@ -146,19 +142,31 @@ def build_clean_events(con) -> dict:
             original.artist_name AS artist_name, original.recording_name AS recording_name,
             CASE WHEN listened_at < TIMESTAMP '{base.TRAIN_END}' THEN 'train'
                 WHEN listened_at < TIMESTAMP '{base.VALIDATION_END}' THEN 'validation'
-                ELSE 'test' END AS split FROM chosen""")
+                ELSE 'test' END AS split, source_rows FROM chosen""")
+    # 중복은 각 키에 속한 원본 행 수로 직접 센다. 분할 건수에서 역산하지 않는다.
+    dedup = base.one(con, """SELECT count(*) AS events,
+        coalesce(sum(source_rows - 1), 0) AS duplicate_excess FROM clean_events""")
+    exclusions = {k: counts[k] for k in EXCLUSION_REASONS[:-1]}
+    exclusions["duplicate_excess"] = dedup["duplicate_excess"]
+    if (counts["valid_rows"] != dedup["events"] + dedup["duplicate_excess"]
+            or counts["raw_rows"] != sum(exclusions.values()) + dedup["events"]):
+        raise RuntimeError("Raw/exclusion/unique event accounting does not reconcile")
+    con.execute("ALTER TABLE clean_events DROP COLUMN source_rows")
+
     partitions = []
     for split, start, end in SPLITS:
         con.execute(f"CREATE VIEW {split}_events AS SELECT * FROM clean_events WHERE split = '{split}'")
         stats = base.one(con, f"""SELECT count(*) AS events, count(DISTINCT user_id) AS users,
-            count(DISTINCT (artist_key, recording_key)) AS items FROM {split}_events""")
+            count(DISTINCT (artist_key, recording_key)) AS items,
+            count(*) FILTER (WHERE listened_at IS NULL OR listened_at < ?::TIMESTAMP
+                OR listened_at >= ?::TIMESTAMP) AS outside_split FROM {split}_events""", [start, end])
+        if stats.pop("outside_split"):
+            raise RuntimeError(f"Clean events outside the UTC interval for {split}")
         partitions.append({"split": split, "start_inclusive_utc": start,
                            "end_exclusive_utc": end, **stats})
     kept = sum(p["events"] for p in partitions)
-    exclusions = {k: counts[k] for k in EXCLUSION_REASONS[:-1]}
-    exclusions["duplicate_excess"] = counts["valid_rows"] - kept
-    if min(exclusions.values()) < 0 or counts["raw_rows"] != sum(exclusions.values()) + kept:
-        raise RuntimeError("Raw/exclusion/split accounting does not reconcile")
+    if kept != dedup["events"]:
+        raise RuntimeError("UTC split counts do not cover all clean events")
     # train만 읽는다. 1~9곡 사용자도 남기고 미래에만 활동한 사용자에게 학습 행을 만들지 않는다.
     con.execute("""CREATE TABLE train_pairs AS SELECT user_id, artist_key, recording_key,
         count(*)::BIGINT AS listen_count FROM train_events GROUP BY ALL""")

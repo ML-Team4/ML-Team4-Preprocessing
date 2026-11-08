@@ -1,11 +1,13 @@
 """정제 SQL을 독립 Python 기준과 대조하고 입력 오류·품질 신호 보존을 확인한다."""
 import hashlib
 import random
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 import unicodedata
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -100,6 +102,27 @@ class EventCleaningTest(unittest.TestCase):
                 self.assertEqual(result["exclusions"], {"missing_required": 3, "outside_window": 2,
                                                       "empty_name": 1, "duplicate_excess": 0})
                 self.assertEqual([p["events"] for p in result["partitions"]], [2, 2, 2])
+
+    def test_partition_faults_cannot_be_counted_as_duplicates(self):
+        records = [(1, "2026-08-17", "Artist", "Song"),
+                   (1, "2026-09-28", "Artist", "Song"),
+                   (1, "2026-10-05", "Artist", "Song")]
+        for fault, message in [
+            ("DELETE FROM clean_events WHERE split = 'validation'", "do not cover"),
+            ("UPDATE clean_events SET split = NULL WHERE split = 'validation'", "do not cover"),
+            ("UPDATE clean_events SET split = 'train' WHERE split = 'validation'", "UTC interval for train"),
+        ]:
+            with self.subTest(fault=fault), fixture_connection(records) as con:
+                # 중복 집계가 끝난 뒤 분할에만 오류를 주입한다.
+                def execute_with_fault(sql, *params):
+                    if sql.startswith("CREATE VIEW train_events AS"):
+                        con.execute(fault)
+                    return con.execute(sql, *params)
+
+                wrapped = Mock(wraps=con)
+                wrapped.execute.side_effect = execute_with_fault
+                with self.assertRaisesRegex(RuntimeError, message):
+                    events.build_clean_events(wrapped)
 
     def test_paired_originals_modal_display_and_row_order_invariance(self):
         first, second = (" A", "B "), ("A ", " B")
@@ -202,18 +225,23 @@ class InputValidationTest(unittest.TestCase):
         self.csv = self.raw / "selected_users.csv"
         self.csv.write_text("user_id,train_unique_tracks,user_index\n1,999,1\n2,999,2\n")
 
-    def test_six_hashes_and_sizes_match_markdown_reference_and_tampering_fails(self):
+    def write_input_reference(self):
         reference = {}
-        lines = ["## 입력 파일 해시와 불변성", "", "| file | bytes | sha256 | unchanged |",
-                 "| --- | --- | --- | --- |"]
+        lines = []
         for name in events.base.REQUIRED_FILES:
             data = (self.raw / name).read_bytes()
             digest = hashlib.sha256(data).hexdigest()
             reference[name] = {"bytes": len(data), "sha256": digest}
-            lines.append(f'| "{name}" | {len(data)} | "{digest}" | True |')
-        report = Path(self.tmp.name) / "reference.md"
-        report.write_text("\n".join(lines) + "\n\n## 다음 절\n")
-        self.assertEqual(events.read_reference(report), reference)
+            lines.extend([f'[files."{name}"]', f"bytes = {len(data)}", f'sha256 = "{digest}"', ""])
+        config = Path(self.tmp.name) / "config"
+        config.mkdir()
+        reference_path = config / "raw-input-reference.toml"
+        reference_path.write_text("\n".join(lines), encoding="utf-8")
+        return reference_path, reference
+
+    def test_six_hashes_and_sizes_match_fixed_reference_and_tampering_fails(self):
+        reference_path, reference = self.write_input_reference()
+        self.assertEqual(events.read_reference(reference_path), reference)
         self.assertEqual(len(events.verify_input_files(self.raw, reference)), 6)
         for name in events.base.REQUIRED_FILES:
             with self.subTest(file=name):
@@ -223,11 +251,35 @@ class InputValidationTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "bytes/SHA256"):
                     events.verify_input_files(self.raw, reference)
                 path.write_bytes(original)
-        report.write_text(report.read_text() + lines[-1] + "\n")
-        self.assertEqual(events.read_reference(report), reference)  # 다음 절은 기준 표가 아니다.
         del reference["COPYING"]
         with self.assertRaisesRegex(ValueError, "six"):
             events.verify_input_files(self.raw, reference)
+
+    def test_cli_rejects_changed_input_even_when_audit_report_matches_it(self):
+        root = Path(self.tmp.name)
+        reference_path, _ = self.write_input_reference()
+        baseline = reference_path.read_bytes()
+        (self.raw / "README.txt").write_text("changed", encoding="utf-8")
+        reports = root / "reports"
+        reports.mkdir()
+        lines = ["## 입력 파일 해시와 불변성", "", "| file | bytes | sha256 | unchanged |",
+                 "| --- | --- | --- | --- |"]
+        for entry in events.fingerprint_inputs(self.raw):
+            lines.append(f'| "{entry["file"]}" | {entry["bytes"]} | "{entry["sha256"]}" | True |')
+        (reports / "raw-data-audit.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        scripts = root / "scripts"
+        scripts.mkdir()
+        for module in (events, events.base):
+            shutil.copy(module.__file__, scripts)
+        cfg = root / "paths.local.toml"
+        cfg.write_text('raw_dir="raw"\ncache_dir="cache"\n')
+        result = subprocess.run(
+            [sys.executable, str(scripts / "preprocess_events.py"), "--config", str(cfg), "--inputs-only"],
+            cwd=root, capture_output=True, text=True, timeout=30,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Input bytes/SHA256 differ from phase 1: README.txt", result.stderr)
+        self.assertEqual(reference_path.read_bytes(), baseline)
 
     def test_schema_cohort_size_unique_mapping_and_membership_are_strict(self):
         with duckdb.connect() as con:
