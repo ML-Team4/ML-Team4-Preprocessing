@@ -1,6 +1,6 @@
 # 공통 데이터 작업 진행 상황
 
-갱신일: 2026-11-09 (Asia/Seoul). 현재 상태는 **학습·평가 패키지 생성기 구현 및 합성 입력 저장·재로딩 완료, PR #3 게시 완료**다.
+갱신일: 2026-11-09 (Asia/Seoul). 현재 작업은 **Issue #5의 문서·코드 언어 표기 통일, PR #6 게시 완료**다. 학습·평가 패키지 생성기는 PR #3으로 main에 반영됐다.
 
 ## 완료
 
@@ -39,22 +39,22 @@ train/validation/test는 요청된 UTC 42/7/7일 경계로 고정한다. 학습 
 
 전체 원본의 입력 검증·정제·분할 집계를 확인했고, 패키지 생성 및 재로딩을 합성 입력으로 확인했다. 전체 원본 패키지 생성, 원본에서 독립적으로 재집계한 값과의 대조, 전체 규모의 자원 측정은 아직 수행하지 않았다. 전달 버전과 공유 위치는 그 결과에 맞춰 기록한다.
 
-모델 담당자는 전체 학습 카탈로그의 희소 입력 처리, 보정 구성·가중 손실 지원, 하이퍼파라미터, 동률·이웃 부족, PDA/IPS/SNIPS 문헌을 확인해야 한다. item_idx 오름차순 동률 처리는 권장안이고 팀 합의로 확정되지 않았다. 이 항목 때문에 공통 데이터 생성 준비를 중단할 필요는 없다.
+모델 담당자는 전체 학습 카탈로그의 희소 입력 처리, 보정 구성·가중 손실 지원, hyperparameter, 동률·이웃 부족, PDA/IPS/SNIPS 문헌을 확인해야 한다. item_idx 오름차순 동률 처리는 권장안이고 팀 합의로 확정되지 않았다. 이 항목 때문에 공통 데이터 생성 준비를 중단할 필요는 없다.
 
 ## 11월 8일 추가 전처리·모델 적합성 검사
 
 `scripts/check_model_readiness.py`를 작성해 전체 원본에서 실행하고 `reports/model-readiness-diagnostics.json`과 `reports/model-readiness-review.md`를 만들었다. JSON은 로컬 생성물로 보관하고 Git에서는 [추가 검토 보고서](reports/model-readiness-review.md)를 읽는다. JSON 재생성 명령은 [README의 점검 실행](README.md#점검-실행)에 있다. 검토 Markdown은 자동 생성되지 않는다. 기본 코드의 규칙을 재사용하며 원래 점검 보고서를 덮어쓰지 않았다. 모델 학습·추천·실제 성능 평가는 수행하지 않았다.
 
-- 사용자 4,959명이 큰 공통 청취 연결요소에 속하고 39명은 고립됐다. 학습 고유곡 중앙값은 320개다.
+- 사용자 4,959명이 큰 공통 청취 connected component에 속하고 39명은 고립됐다. 학습 고유곡 중앙값은 320개다.
 - 테스트 정답 쌍의 약 94.01%에 Top-K 절삭 전 양의 Item-based 유사도 경로가 있다. 사용자별 비율 평균은 약 89.23%이며 실제 Recall이 아니다.
-- 단독 청취 곡끼리 코사인=1 동률이 가능하다. 동일 소유 사용자·횟수 패턴이 반복되는 묶음에 1,194,725곡이 속하며 MF도 곡 구별 근거가 부족할 수 있다.
+- 단독 청취 곡끼리 cosine similarity=1 동률이 가능하다. 동일 소유 사용자·횟수 패턴이 반복되는 묶음에 1,194,725곡이 속하며 MF도 곡 구별 근거가 부족할 수 있다.
 - 동일 사용자·시각 572곡 사례를 확인했다. 학습 동시각 10곡 이상 사건은 2,146건으로 약 0.03%이며 자동 삭제하지 않았다.
 - 학습 곡 집합이 같은 두 사용자는 403곡을 공유하고 곡·시각까지 같은 사건이 1,270건이었다. 동기화/유사 계정 의심 사례로 기록하고 자동 병합·삭제하지 않았다.
 - 학습 청취 상위 1% 사용자가 사건의 약 19.81%를 차지한다. 원시 횟수 보존과 모델 측 변환·confidence 검증이 필요하다.
 - Recall@10 수학적 최대 평균은 검증 약 0.4785, 테스트 약 0.4643이다. 정답 수에 따른 지표 상한이며 모델 결과가 아니다.
 - float32 dense 사용자×곡은 약 30.50GB, 곡×곡은 약 9.30TB다. 희소 입력·블록 점수·계산 중 Top-K가 필요하다. 실제 모델 시간/메모리는 미검증이다.
 
-원본 여섯 파일은 전후 해시가 같았다. 원래 표본·평가 정의·처리 규칙은 유지하고 추적용 진단 플래그를 전처리 계획에 추가했다. 기본 회귀 검사 2개에 직접 유사도 경로와 연결요소의 차이를 확인하는 검사 1개를 추가해 총 3개가 통과했다. 강한 필터링이나 실제 계정 병합은 별도 근거와 중요한 결정 확인 없이 적용하지 않는다.
+원본 여섯 파일은 전후 해시가 같았다. 원래 표본·평가 정의·처리 규칙은 유지하고 추적용 진단 플래그를 전처리 계획에 추가했다. 기본 회귀 검사 2개에 직접 유사도 경로와 connected component의 차이를 확인하는 검사 1개를 추가해 총 3개가 통과했다. 강한 필터링이나 실제 계정 병합은 별도 근거와 중요한 결정 확인 없이 적용하지 않는다.
 
 ## 11월 8일 · 입력 검증·정제·시간 분할
 
@@ -115,26 +115,18 @@ train 품질 진단은 별도 관계에서 집계했다. 이름 이상은 455사
 | validation 제외 / test 제외 | 우선순위대로 `1 / 2 / 1 / 1`명 / `1 / 2 / 0 / 1`명 |
 | validation 신규곡 / 기청취곡 | 3사건·1곡·2쌍·2명 / 2사건·2곡·2쌍·2명 |
 
-합성 예제는 `.cache/datasets/` 아래에 보관되어 있으며 정확한 버전은 manifest의 `dataset_version`에 기록되어 있다. UTC 2026-11-08 14:23:49에 생성했고,
-계약·규칙 버전은 각각 `1.0.0`이다. 패키지는 11파일,
-22,849바이트다. 13,375바이트인 manifest의 SHA256은
-`6b158d51bbab65bd7da305e5e2c04e11090c11e7a7438d86b2f632e2479bfda1`이다.
-나머지 10파일의 크기와 SHA256은 manifest의 `files`에 있다.
-생성 당시 HEAD는 위 머지 커밋, 생성 코드는 미커밋 상태였다.
+합성 입력에서 패키지 11파일의 저장과 재로딩을 확인했다. 생성 당시 HEAD는 위 머지 커밋이고 생성 코드는 미커밋 상태였다. 검증을 마친 합성 패키지는 정리했다.
 
 macOS 27.2 arm64, Python 3.13.7, DuckDB 1.4.4, NumPy 2.2.6, SciPy 1.15.3,
 PyArrow 20.0.0에서 실행했다. DuckDB 설정은 `memory_limit=3GB`, `threads=2`다.
 NFC 라이브러리 버전은 [고정 DuckDB 소스](https://github.com/duckdb/duckdb/blob/v1.4.4/third_party/utf8proc/utf8proc.cpp)의 utf8proc 2.9.0·Unicode 15.1.0이다.
 
-저장소 루트에서 재현할 수 있는 명령은 아래와 같다. 예제 버전 이름이 이미 존재하면
-`--version`을 새 이름으로 바꾼다. 재실행 manifest에는 현재 코드와 실행 시각이 기록되므로 SHA256은 위 과거 실행 기록과 달라질 수 있다. 입력과 테스트 임시 폴더는 실행 후 정리된다.
+저장소 루트에서 재현할 수 있는 명령은 아래와 같다. 테스트가 임시 폴더에 입력과 패키지를 생성하고 실행 후 정리한다.
 
 ```bash
 .venv/bin/python scripts/preprocess_events.py --config config/paths.local.toml --inputs-only
-.venv/bin/python tests/test_build_dataset.py --variant original --output-root .cache/datasets --version synthetic-example-review-v1
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m pip check
-shasum -a 256 .cache/datasets/synthetic-example-review-v1/dataset_manifest.json
 git diff --check
 ```
 
@@ -150,11 +142,7 @@ validation 정답 `(0, 1)`은 test에도 남았다. 후보 9개 사용자와 정
 
 ## 11월 9일 · 합성 예제 재생성
 
-기능과 검증 범위가 드러나도록 문서와 실행 설명을 정리했다. 당시 생성한 예제는
-`.cache/datasets/synthetic-example-v1/`에 있다. 15:36:33 KST에 생성한 11파일은
-총 22,861바이트다. manifest의 SHA256은
-`6990a57fe6aea044d989e7a779d0129c7f50657336ef47714bf412a0c7724175`다.
-나머지 10파일의 해시와 정제·평가 집계는 앞서 저장한 예제와 모두 일치했다.
+기능과 검증 범위가 드러나도록 문서와 실행 설명을 정리했다. 당시 재생성한 예제의 데이터·문서 10파일의 해시와 정제·평가 집계는 앞서 생성한 예제와 모두 일치했다.
 전체 테스트 19개, 실제 원본 입력 검증, 새 패키지의 README 로딩 예제를 다시 확인했다.
 
 ## 11월 9일 · 패키지 게시 전 검증
@@ -164,9 +152,9 @@ validation 정답 `(0, 1)`은 test에도 남았다. 후보 9개 사용자와 정
 - 작업 환경과 새 가상환경을 사용한 별도 로컬 복제본에서 각각 **21개 테스트 통과**. 복제본에는 게시 후보 20개 파일을 적용했고, 개인 설정 없이 고정 의존성 설치·`pip check`·합성 예제 생성·동봉 README 실행을 확인했다.
 - 실제 입력 여섯 파일은 실행 전후 크기·SHA256이 기준과 일치했다. 9,350,628행, 선정 사용자 5,000명, Parquet과 선정 CSV의 사용자 집합 차이는 양방향 0명이었다. 전체 원본에서 패키지를 만드는 검증은 별도 작업이다.
 - 별도 합성 입력 3,752행에서 Python 기준으로 계산한 학습 매핑·대표 이름·청취 횟수·고유 청취자 수와 저장값이 일치했다. validation 28명·307쌍, test 29명·321쌍이며 각 기간 정답 누락·초과는 모두 0쌍이었다.
-- 검토용 패키지 `.cache/datasets/synthetic-preflight-v1/`는 11파일, 총 22,865바이트다. manifest SHA256은 `c36ddcecd84def01bda7f9628e036f9351eed261471d02af6e5ca9c41ee1fbc3`이다. 개별 산출물 10개가 앞선 합성 예제와 바이트 단위로 일치했다. 동일 버전 재실행을 거부한 뒤에도 기존 파일 11개의 해시가 유지됐다.
+- 합성 패키지의 개별 산출물 10개가 앞선 합성 예제와 바이트 단위로 일치했다. 동일 버전 재실행을 거부한 뒤에도 기존 파일 11개의 해시가 유지됐다.
 
-저장소 루트에서 `.venv/bin/python -m unittest discover -s tests -v`로 회귀 검사를 다시 실행하고, `shasum -a 256 .cache/datasets/synthetic-preflight-v1/dataset_manifest.json`으로 보관본을 확인할 수 있다.
+저장소 루트에서 `.venv/bin/python -m unittest discover -s tests -v`로 회귀 검사를 다시 실행할 수 있다.
 
 ## 11월 9일 · 패키지 생성기 PR 게시
 
@@ -174,8 +162,36 @@ validation 정답 `(0, 1)`은 test에도 남았다. 후보 9개 사용자와 정
 
 ## 전체 원본 검증 준비
 
-1. [Issue #1](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/1)의 진행 기록과 [PR #3](https://github.com/ML-Team4/ML-Team4-Preprocessing/pull/3)의 main 머지 여부를 확인한다. main 머지는 사용자 담당이며 Issue #1은 후속 검증을 위해 열린 상태로 유지한다.
+1. 기존 구현과 검증 기록은 [Issue #1](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/1)과 [PR #3](https://github.com/ML-Team4/ML-Team4-Preprocessing/pull/3)에서 확인한다. PR #3은 main에 머지됐고 Issue #1은 닫혔다. 후속 작업은 해당 작업의 새 Issue에서 추적한다.
 2. 전체 원본 검증은 패키지 생성기 PR 머지 후 최신 `origin/main`에서 시작한다. [전체 원본 생성 명령](README.md#학습평가-패키지-생성)을 사용하고 입력 불변성·전체 기대 집합·자원 사용량을 확인한다.
+
+## 11월 9일 · 문서와 코드 설명의 언어 표기 통일
+
+[Issue #5 · 문서와 코드 설명의 언어·기술 용어 표기 통일](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/5)을 등록했다. 작업 트리는 깨끗했고 origin 주소를 확인한 뒤 `git fetch origin`을 실행했다. 최신 `origin/main`인 `fe84fa02d76d48b1b1473a4ef754bcfb6217457f`에서 로컬 `docs/language-consistency` 브랜치를 만들었다.
+
+- AGENTS.md와 README에 한국어 설명, 영어 식별자·기술 용어, 영어 그래프 제목·축·범례 기준을 기록했다. `sparsity`, `matrix density`, `sparse matrix`, `dense matrix`, `hyperparameter`, `cosine similarity`, `connected component`를 공통 표기로 정했다.
+- 코드 주석·설정 안내·실행 메시지·오류 설명과 manifest의 설명 문장을 한국어로 정리했다. 한국어 오류 메시지와 README 출력 설명을 확인하도록 기존 테스트의 기대 문구도 맞췄다.
+- Python 파일 8개의 AST를 대조해 식별자·계산·분기·SQL·dict key가 origin/main과 일치함을 확인했다. 보고서의 통계와 기존 실행 시점의 hash 기록을 보존했다.
+- 기존 테스트 21개와 `pip check`가 통과했다. 실제 원본 6개 파일의 bytes·SHA256, 9,350,628행의 schema와 선정 사용자 5,000명도 다시 확인했다. 초기 검사에서 이전 영문 오류를 기대하던 테스트 2곳을 찾아 한국어 문구로 수정했다.
+- 수정한 패키지 README와 manifest 설명을 합성 입력으로 검증했다. 생성 당시 HEAD는 위 main 커밋이며 실제 생성 코드와 설정 hash를 확인했다.
+- 새 패키지의 데이터 8파일과 COPYING이 앞선 보관본과 byte 단위로 일치했고, 기존 보관본 11파일의 hash도 모두 유지됐다. CSR은 shape `(5, 11)`, nnz 15, 횟수 합계 18이다. validation은 사용자 1명·target 1쌍, test는 사용자 2명·target 3쌍이다. 새 README 예제에서 파일 hash 대조와 데이터 로딩이 성공했다.
+
+저장소 루트에서 아래 명령으로 재현한다. 임시 원본과 패키지는 테스트가 종료되면 정리된다.
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m pip check
+```
+
+이번 검사는 Python 3.13.7, DuckDB 1.4.4, NumPy 2.2.6, SciPy 1.15.3, PyArrow 20.0.0에서 실행했다. EDA 보고서와 그래프는 아직 없으므로 해당 산출물의 언어 검사는 EDA 구현 시 진행한다. 전체 원본 패키지 실행과 성능 측정은 별도 검증 범위다.
+
+## 11월 9일 · 언어 표기 통일 PR 게시
+
+게시 승인 후 테스트 21개, `pip check`, AST·문서 내부 링크·언어 표기 검사를 다시 통과했다. 임시 경로에 재생성한 합성 패키지의 데이터·README hash가 보관본과 일치했고 한국어 로딩 예제도 성공했다.
+
+승인된 18개 파일을 `646edee29e8c413e5dc7c300d88cb8890c40c900`으로 커밋하고 `git push -u origin docs/language-consistency`로 게시했다. [PR #6 · 문서·코드 설명과 기술 용어 표기 통일](https://github.com/ML-Team4/ML-Team4-Preprocessing/pull/6)의 base는 `main`, head는 `docs/language-consistency`이며 `Closes #5`로 Issue를 연결했다. Issue #5의 진행 기록에도 PR 링크와 검증 결과를 남겼다. main 머지는 사용자 담당이다.
+
+검증용으로 보관했던 합성 패키지 4개·44파일은 이후 정리했다. README의 재현 안내도 임시 폴더를 자동 정리하는 기존 테스트 명령으로 맞췄다.
 
 ## 원본 점검 첫 커밋 준비 당시 Git 기록
 

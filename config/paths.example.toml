@@ -1,5 +1,5 @@
-# Copy to config/paths.local.toml (ignored). Paths resolve relative to this file.
-# Use an existing local dataset; the audit never downloads data.
+# config/paths.local.toml로 복사한다. 상대 경로의 기준은 이 파일이 있는 폴더다.
+# 이미 확보한 로컬 데이터를 사용한다. 점검에는 데이터 다운로드가 필요하지 않다.
 raw_dir = "../data/raw/verified_dataset"
 report_dir = "../reports"
 cache_dir = "../.cache/raw-audit"

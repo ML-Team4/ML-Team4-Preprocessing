@@ -1,4 +1,4 @@
-# Data and all generated model/preprocessing artifacts stay outside Git.
+# 원본 데이터와 모델·전처리 생성물은 Git 제외 경로에 보관한다.
 data/
 raw/
 interim/

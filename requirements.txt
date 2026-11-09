@@ -1,4 +1,4 @@
-# Python >=3.11; audits, event cleaning and sparse dataset packages.
+# Python >=3.11에서 입력 점검·사건 정제·sparse matrix 패키지 생성에 사용한다.
 duckdb==1.4.4
 numpy==2.2.6
 pyarrow==20.0.0

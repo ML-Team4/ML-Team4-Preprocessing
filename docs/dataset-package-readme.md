@@ -38,13 +38,13 @@ for name, metadata in manifest["files"].items():
     with path.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
     if path.stat().st_size != metadata["bytes"] or digest != metadata["sha256"]:
-        raise ValueError(f"File size or SHA256 mismatch: {name}")
+        raise ValueError(f"파일 크기 또는 SHA256이 다릅니다: {name}")
 
 counts = load_npz("train_counts.npz")
 print(manifest["dataset_version"], counts.shape, counts.nnz)
 if counts.shape[0]:
     history = counts.getrow(0)
-    print("user_idx=0 candidate count", counts.shape[1] - history.nnz)
+    print("user_idx=0의 candidate 수", counts.shape[1] - history.nnz)
     items = pq.read_table("items.parquet", filters=[("item_idx", "=", int(history.indices[0]))])
     print(items.select(["item_idx", "train_listener_count"]).to_pylist())
 
@@ -54,5 +54,5 @@ for period in ("validation", "test"):
     if first_user is not None:
         targets = pq.read_table(f"{period}_targets.parquet",
                                 filters=[("user_idx", "=", int(first_user["user_idx"]))])
-        print(period, targets.num_rows, "targets for the first evaluation user")
+        print(period, "첫 평가 사용자의 target 수", targets.num_rows)
 ```

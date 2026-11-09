@@ -90,15 +90,13 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 
 ## 학습·평가 패키지 생성
 
-설치 후 저장소 루트에서 아래 명령으로 가상 원본을 만들고 합성 예제를 검토한다. 출력은 Git에서 제외되며 기존 버전 이름을 재사용하면 실행을 거부한다.
+설치 후 저장소 루트에서 아래 명령으로 합성 입력을 검증한다. 테스트가 임시 폴더에 원본과 패키지를 생성하고 검사가 끝나면 정리한다.
 
 ```bash
-.venv/bin/python tests/test_build_dataset.py --variant original \
-  --output-root .cache/datasets --version synthetic-example-review-v1
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-예제의 CSR은 `(5, 11)`에 비제로 15개, 청취 횟수 합계 18이다. validation은 평가 사용자 1명과 정답 1쌍, test는 2명과 3쌍이다. 생성된 `README.md`의 예제로 패키지의 크기·SHA256, CSR 한 행, 곡 인기도와 기간별 정답을 확인할 수 있다. 파일 스키마는 [데이터 계약](docs/data-contract.md), 실제 합성 실행 기록은 [PROGRESS.md](PROGRESS.md)에 있다.
+예제의 CSR은 `(5, 11)`에 비제로 15개, 청취 횟수 합계 18이다. validation은 평가 사용자 1명과 정답 1쌍, test는 2명과 3쌍이다. 테스트는 패키지의 README 예제도 실행해 크기·SHA256, CSR 한 행, 곡 인기도와 기간별 정답을 확인한다. 파일 스키마는 [데이터 계약](docs/data-contract.md), 실제 합성 실행 기록은 [PROGRESS.md](PROGRESS.md)에 있다.
 
 실제 원본으로 실행할 때는 정제·분할에 사용한 로컬 설정과 아직 존재하지 않는 데이터 버전 이름을 사용한다.
 
@@ -110,6 +108,8 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 생성기는 디스크 기반 DuckDB에서 공통 정제·분할을 이어받고, Arrow 배치로 필수 컬럼을 가진 ZSTD Parquet을 쓴다. SciPy로 저장한 CSR을 다시 열어 Parquet의 전체 좌표·값과 대조한다. 임시 폴더에서 재로딩 검사를 통과한 뒤 같은 출력 위치에 버전 폴더를 확정한다. manifest에는 기간별 평가 제외 집계, 파일 해시, 생성 시점의 코드·설정·환경을 기록한다. [DuckDB Arrow 내보내기](https://duckdb.org/docs/1.4/guides/python/export_arrow), [PyArrow ParquetWriter](https://arrow.apache.org/docs/20.0/python/generated/pyarrow.parquet.ParquetWriter.html), [SciPy 희소 NPZ](https://docs.scipy.org/doc/scipy-1.15.3/reference/generated/scipy.sparse.save_npz.html)
 
 ## 문서 안내
+
+설명 문서와 코드 주석은 한국어로 작성한다. 변수·함수·컬럼명과 기술 용어는 영어로 표기하며, 그래프 제목·축·범례도 영어로 작성한다. 반복해서 사용하는 기술 용어와 원문 보존 기준은 [AGENTS.md](AGENTS.md)에 기록했다.
 
 - [원본 점검 결과 (Markdown)](reports/raw-data-audit.md)
 - [전처리 타당성과 모델 적합성 추가 검토 (Markdown)](reports/model-readiness-review.md)

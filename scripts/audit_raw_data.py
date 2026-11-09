@@ -76,14 +76,14 @@ def git_trace(repo: Path) -> dict:
 
 def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
     """집계·샘플만 반환한다. 외부 경로/원본 user_id는 결과에 내보내지 않는다."""
-    log("[audit] schema, range and missing values", flush=True)
+    log("[audit] schema·기간·결측값 점검", flush=True)
     con.read_parquet(str(raw_dir / REQUIRED_FILES[0])).create_view("raw")
     schema = rows(con, "DESCRIBE raw")
     expected = [("user_id", "BIGINT"), ("listened_at", "TIMESTAMP"),
                 ("artist_name", "VARCHAR"), ("recording_name", "VARCHAR")]
     actual = [(r["column_name"], r["column_type"]) for r in schema]
     if actual != expected:
-        raise ValueError(f"Unexpected schema (no implicit casts): {actual!r}")
+        raise ValueError(f"입력 schema가 요구한 자료형과 다릅니다: {actual!r}")
     install_normalizer(con)
     con.execute("CREATE TABLE cohort AS SELECT * FROM read_csv(?, header=true, "
                 "columns={'user_id':'BIGINT','train_unique_tracks':'BIGINT','user_index':'BIGINT'})",
@@ -94,7 +94,7 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
         count(*) FILTER (WHERE user_id IS NULL OR user_index IS NULL OR
         train_unique_tracks IS NULL) AS missing_rows FROM cohort""")
     if cohort["rows"] != cohort["users"] or cohort["rows"] != cohort["indices"] or cohort["missing_rows"]:
-        raise ValueError("selected_users.csv must contain a one-to-one non-null mapping")
+        raise ValueError("selected_users.csv는 NULL 없는 일대일 매핑이어야 합니다")
     basic = one(con, """SELECT count(*) AS rows, count(DISTINCT user_id) AS users,
         count(DISTINCT cast(listened_at AS DATE)) AS dates,
         min(listened_at) AS min_time, max(listened_at) AS max_time,
@@ -125,7 +125,7 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
         (SELECT count(*) FROM raw) - count(*) AS excess_duplicate_rows FROM
         (SELECT DISTINCT user_id, listened_at, artist_name, recording_name FROM raw)""")
     raw_items = one(con, "SELECT count(*) AS items FROM (SELECT DISTINCT artist_name, recording_name FROM raw)")
-    log("[audit] temporary normalization and duplicate diagnostics", flush=True)
+    log("[audit] 임시 정규화와 중복 진단", flush=True)
     # 한 번에 9백만 행을 Python 객체로 바꾸지 않고 SQL로 집계한다.
     con.execute("""CREATE TABLE normalized AS SELECT user_id, listened_at,
         norm_name(artist_name) AS artist_name, norm_name(recording_name) AS recording_name
@@ -197,7 +197,7 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
         t.n AS current_items, t.n-c.train_unique_tracks AS difference FROM cohort c JOIN
         (SELECT user_id, count(*) AS n FROM train_pairs GROUP BY user_id) t USING(user_id)
         WHERE t.n<>c.train_unique_tracks ORDER BY c.user_index LIMIT {sample_size}""")
-    log("[audit] bounded content, name and activity samples", flush=True)
+    log("[audit] 내용·이름·활동량의 제한 표본 점검", flush=True)
     names = rows(con, f"""SELECT artist_name AS raw_artist, recording_name AS raw_recording,
         norm_name(artist_name) AS normalized_artist, norm_name(recording_name) AS normalized_recording,
         count(*) AS raw_events FROM raw
@@ -241,7 +241,7 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
         max(artist_name || ' / ' || recording_name) AS last_example FROM variants
         GROUP BY lower(artist_name),lower(recording_name) HAVING count(*) > 1
         ORDER BY variants DESC, folded_artist, folded_recording LIMIT {sample_size}""")
-    log("[audit] evaluation exclusion diagnostics (no model metrics)", flush=True)
+    log("[audit] 평가 대상 제외 진단", flush=True)
     evaluation = {}
     for split, start, end in [("validation", TRAIN_END, VALIDATION_END), ("test", VALIDATION_END, WINDOW_END)]:
         con.execute("CREATE OR REPLACE TABLE period AS SELECT * FROM events WHERE listened_at >= ?::TIMESTAMP AND listened_at < ?::TIMESTAMP", [start,end])
@@ -321,7 +321,7 @@ def render_report(result: dict) -> str:
         "과거 규칙은 `NFC(regexp_replace(trim(s), '\\s+', ' ', 'g'))`이며 로컬 기존 분석 스크립트에서 확인했다. 이를 같은 파일에 재적용한 수치와 현재 규칙을 위에서 대조한다. RE2의 `\\s`가 정리하지 않는 유니코드 공백과 trim 적용 순서의 차이가 있으므로 CSV의 train_unique_tracks를 새 규칙의 기대값으로 강제하지 않는다. 사용자 선정 순서는 유지한다.\n",
         "동일 사용자·동일 시각·동일 정규화 튜플의 초과 행만 중복 제거 대상으로 삼는다. 다른 시각의 반복은 실제 선호 신호일 수 있어 보존한다. 대소문자 차이나 라이브·리믹스·리마스터 표기는 의미가 다를 수 있어 자동 병합하지 않는다.\n",
         "과도한 청취량과 podcast·audiobook 등의 문자열은 검토 신호일 뿐이다. 네 컬럼만으로 재생 길이, 실제 사람의 청취, 음악 여부를 판정할 수 없으므로 해당 신호로 자동 삭제하지 않는다. 동명 곡의 오병합과 표기 차이의 과분리는 남는다.\n",
-        "여기서 재산출된 수치가 과거 검증 수치와 같더라도 최종 전달본 통계는 아니다. 최종 해시·ID·희소행렬·제외 사유별 산출물 검증은 패키지 생성 시 수행한다. source_manifest의 공식 TAR 전체 해시를 검증한 것이 아니다.\n",
+        "여기서 재산출된 수치가 과거 검증 수치와 같더라도 최종 전달본 통계는 아니다. 최종 해시·ID·sparse matrix·제외 사유별 산출물 검증은 패키지 생성 시 수행한다. source_manifest의 공식 TAR 전체 해시를 검증한 것이 아니다.\n",
         "## 진단 일별 규모\n",table(result["daily"]),
         "## 코드 추적\n",table(result["code_trace"]),
         "규칙과 전달 규격은 `docs/preprocessing-plan.md`, `docs/data-contract.md`를 따른다. 원본 사용자 식별자는 보고서에 싣지 않았다.\n"])
@@ -340,18 +340,18 @@ def main() -> None:
     # 원본 아래에는 보고서나 임시파일을 만들지 않도록 경로를 먼저 검증한다.
     for destination in (report_dir,cache_dir):
         if destination == raw_dir or raw_dir in destination.parents:
-            raise ValueError("Output/cache directory must not be inside raw_dir")
+            raise ValueError("출력·cache 폴더는 raw_dir 밖에 지정해야 합니다")
     sample_size = config.get("sample_size",5)
     threads = config.get("threads",2)
     if not isinstance(sample_size,int) or not 1 <= sample_size <= 20:
-        raise ValueError("sample_size must be between 1 and 20")
+        raise ValueError("sample_size는 1부터 20 사이여야 합니다")
     if not isinstance(threads,int) or not 1 <= threads <= 4:
-        raise ValueError("threads must be between 1 and 4")
+        raise ValueError("threads는 1부터 4 사이여야 합니다")
     started = time.monotonic()
     before = {name:sha256(raw_dir/name) for name in REQUIRED_FILES}
     expected_hash = config.get("expected_sha256")
     if expected_hash and before[REQUIRED_FILES[0]] != expected_hash:
-        raise ValueError("Original Parquet SHA256 does not match; audit aborted")
+        raise ValueError("원본 Parquet SHA256이 기준과 다릅니다")
     cache_dir.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="audit-",dir=cache_dir) as work:
         con = duckdb.connect(str(Path(work)/"diagnostic.duckdb"))
@@ -367,18 +367,18 @@ def main() -> None:
             con.close()
     after = {name:sha256(raw_dir/name) for name in REQUIRED_FILES}
     if before != after:
-        raise RuntimeError("An input file changed during the audit; no reports written")
+        raise RuntimeError("점검 중 입력 파일이 변경돼 보고서 생성을 중단했습니다")
     result["input_files"] = [{"file":name,"bytes":(raw_dir/name).stat().st_size,
                               "sha256":digest,"unchanged":before[name]==after[name]}
                              for name,digest in before.items()]
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    result["execution"] = dict(started_note="finished_utc is report generation time",
+    result["execution"] = dict(started_note="finished_utc는 보고서 생성 시각",
         finished_utc=datetime.now(timezone.utc).isoformat(),python=platform.python_version(),
         duckdb=duckdb.__version__,platform=platform.system()+" "+platform.machine(),
         memory_limit=config.get("memory_limit","3GB"),threads=threads,sample_size=sample_size,
         elapsed_seconds=round(time.monotonic()-started,2),
         peak_rss_bytes=rss if sys.platform=="darwin" else rss*1024,
-        normalization="NFC + fixed 29 whitespace codepoints -> ASCII space + strip",
+        normalization="NFC 후 고정 공백 codepoint 29종을 ASCII 공백으로 축약하고 양끝 공백 제거",
         python_unicode_version=unicodedata.unidata_version,
         whitespace_codepoints=[f"U+{c:04X}" for c in WHITESPACE],
         final_preprocessing_files_created=False)

@@ -170,7 +170,7 @@ class DatasetBuildTest(unittest.TestCase):
         result = subprocess.run([sys.executable, "-c", consumer_code], cwd=package,
                                 check=True, capture_output=True, text=True)
         self.assertIn("baseline (5, 11) 15", result.stdout)
-        self.assertIn("test 2 targets for the first evaluation user", result.stdout)
+        self.assertIn("test 첫 평가 사용자의 target 수 2", result.stdout)
 
     def test_row_order_and_future_activity_invariance(self):
         baseline = run_example(self.output, "original")
@@ -207,7 +207,7 @@ class DatasetBuildTest(unittest.TestCase):
             sparse.save_npz(path, matrix)
 
         with patch.object(build, "write_csr", side_effect=corrupt_counts):
-            with self.assertRaisesRegex(RuntimeError, "coordinates/counts differ"):
+            with self.assertRaisesRegex(RuntimeError, "CSR 좌표·횟수"):
                 run_example(self.output, version)
         self.assertEqual(list(self.output.iterdir()), [])
         package = run_example(self.output, version)
