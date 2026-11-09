@@ -1,4 +1,4 @@
-"""같은 연결요소라는 이유만으로 Item-based 양의 점수를 가정하지 않는지 검사."""
+"""같은 connected component라는 이유만으로 Item-based 양의 점수를 가정하지 않는지 검사."""
 import sys
 import unittest
 from pathlib import Path
@@ -14,7 +14,7 @@ class ModelReadinessTest(unittest.TestCase):
         con=duckdb.connect()
         self.addCleanup(con.close)
         con.execute("CREATE TABLE dp(u INTEGER,i INTEGER,listens INTEGER)")
-        # 1 -- item10 -- 2 -- item20 -- 3 -- item30; user4 is isolated.
+        # user1과 user2는 item10, user2와 user3는 item20을 공유하며 user4는 고립돼 있다.
         con.executemany("INSERT INTO dp VALUES(?,?,?)",[(1,10,1),(2,10,2),(2,20,1),
                                                        (3,20,1),(3,30,1),(4,40,1)])
         con.execute("CREATE TABLE fixture_targets(u INTEGER,i INTEGER)")

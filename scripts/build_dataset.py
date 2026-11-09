@@ -46,7 +46,7 @@ PARQUET_FILES = {
 def build_train_tables(con, train: dict) -> None:
     """정제된 train_pairs·train_display_names에서 ID와 학습 파일 관계를 만든다."""
     if max(train["users"], train["items"]) > np.iinfo(np.int32).max:
-        raise ValueError("Train user or item count exceeds the int32 contract")
+        raise ValueError("train 사용자 또는 곡 수가 int32 범위를 초과했습니다")
     con.execute("""CREATE TABLE users AS SELECT
         (row_number() OVER (ORDER BY user_id) - 1)::INTEGER AS user_idx, user_id
         FROM (SELECT DISTINCT user_id FROM train_pairs)""")
@@ -109,7 +109,7 @@ def build_evaluation(con, period: str, catalog_size: int, cohort_size: int, even
     below_min_pairs = target_counts.get("fewer_than_10_candidates", 0)
     if (sum(s["events"] for s in stats.values()) != events or sum(users.values()) != cohort_size
             or eligible_pairs + below_min_pairs != candidate["user_item_pairs"]):
-        raise RuntimeError(f"{period} event/pair/user accounting does not reconcile")
+        raise RuntimeError(f"{period}의 사건·고유 쌍·사용자 집계가 일치하지 않습니다")
     con.execute(f"DROP TABLE {period}_classified")
     con.execute(f"DROP TABLE {period}_eligibility")
     return {
@@ -139,7 +139,7 @@ def write_parquet(con, staging: Path) -> None:
         with reader, pq.ParquetWriter(staging / f"{table}.parquet", schema, compression="zstd") as writer:
             for batch in reader:
                 if any(column.null_count for column in batch.columns):
-                    raise RuntimeError(f"Unexpected NULL in {table}")
+                    raise RuntimeError(f"{table}에서 NULL이 발견됐습니다")
                 writer.write_batch(pa.RecordBatch.from_arrays(batch.columns, schema=schema))
 
 
@@ -156,13 +156,13 @@ def write_csr(staging: Path, train: dict) -> None:
             users, items, counts = (column.to_numpy() for column in batch.columns)
             end = offset + batch.num_rows
             if end > nnz or np.any(users < 0) or np.any(users >= shape[0]):
-                raise RuntimeError("Unexpected train pair count or user_idx")
+                raise RuntimeError("train 고유 쌍 수 또는 user_idx가 범위를 벗어났습니다")
             indices[offset:end] = items
             data[offset:end] = counts
             indptr[1:] += np.bincount(users, minlength=shape[0])
             offset = end
     if offset != nnz:
-        raise RuntimeError("Train pair count differs from the cleaned train_pairs relation")
+        raise RuntimeError("train 고유 쌍 수가 정제된 train_pairs와 다릅니다")
     np.cumsum(indptr, out=indptr)
     matrix = sparse.csr_matrix((data, indices, indptr), shape=shape)
     sparse.save_npz(staging / "train_counts.npz", matrix)
@@ -173,18 +173,18 @@ def verify_csr(staging: Path, train: dict) -> dict:
     path = staging / "train_counts.npz"
     matrix = sparse.load_npz(path)
     if not sparse.isspmatrix_csr(matrix) or matrix.shape != (train["users"], train["items"]):
-        raise RuntimeError("Invalid CSR format or shape")
+        raise RuntimeError("CSR format 또는 shape이 올바르지 않습니다")
     nnz = train["user_item_pairs"]
     if (matrix.data.size != nnz or matrix.indices.size != nnz
             or matrix.indptr.size != matrix.shape[0] + 1 or matrix.indptr[-1] != nnz
             or matrix.data.dtype != np.int64 or np.any(matrix.data <= 0)):
-        raise RuntimeError("Invalid CSR pointers, nnz or data dtype/counts")
+        raise RuntimeError("CSR pointer, nnz 또는 data의 dtype·횟수가 올바르지 않습니다")
     matrix.check_format(full_check=True)
     if not matrix.has_canonical_format or np.any(np.diff(matrix.indptr) <= 0):
-        raise RuntimeError("CSR must have sorted unique items and a nonempty row per train user")
+        raise RuntimeError("CSR의 각 train 사용자 행은 비어 있지 않고 곡이 중복 없이 정렬돼야 합니다")
     total = int(matrix.data.sum())
     if total != train["events"]:
-        raise RuntimeError("CSR count sum differs from the clean train event count")
+        raise RuntimeError("CSR 횟수 합계가 정제된 train 사건 수와 다릅니다")
 
     offset = 0
     with pq.ParquetFile(staging / "train_interactions.parquet") as parquet:
@@ -194,10 +194,10 @@ def verify_csr(staging: Path, train: dict) -> dict:
             row_ids = np.searchsorted(matrix.indptr, np.arange(offset, end), side="right") - 1
             if (not np.array_equal(users, row_ids) or not np.array_equal(items, matrix.indices[offset:end])
                     or not np.array_equal(counts, matrix.data[offset:end])):
-                raise RuntimeError("Reloaded CSR coordinates/counts differ from train_interactions")
+                raise RuntimeError("다시 읽은 CSR 좌표·횟수가 train_interactions와 다릅니다")
             offset = end
     if offset != nnz:
-        raise RuntimeError("Reloaded CSR and train_interactions nnz differ")
+        raise RuntimeError("다시 읽은 CSR과 train_interactions의 nnz가 다릅니다")
     return {"format": "csr", "shape": list(matrix.shape), "nnz": nnz, "sum_counts": total,
             "data_dtype": str(matrix.data.dtype), "indices_dtype": str(matrix.indices.dtype),
             "indptr_dtype": str(matrix.indptr.dtype), "canonical": True,
@@ -226,14 +226,14 @@ def verify_package(con, staging: Path, train: dict, evaluation: dict, copying: d
         schema, reader = ordered_batches(con, table)
         with reader, pq.ParquetFile(path) as parquet:
             if parquet.schema_arrow != schema or parquet.metadata.num_rows != expected_rows[table]:
-                raise RuntimeError(f"Reloaded schema/row count differs for {path.name}")
-            # write_batch writes one row group. Match each reloaded group in physical order.
+                raise RuntimeError(f"다시 읽은 {path.name}의 schema 또는 행 수가 다릅니다")
+            # write_batch가 쓴 row group을 저장된 순서대로 다시 읽어 대조한다.
             for expected, group in zip_longest(reader, range(parquet.num_row_groups)):
                 if expected is None or group is None:
-                    raise RuntimeError(f"Reloaded row groups differ for {path.name}")
+                    raise RuntimeError(f"다시 읽은 {path.name}의 row group이 다릅니다")
                 actual = parquet.read_row_group(group)
                 if not actual.equals(pa.Table.from_arrays(expected.columns, schema=schema)):
-                    raise RuntimeError(f"Reloaded rows/order differ for {path.name}")
+                    raise RuntimeError(f"다시 읽은 {path.name}의 행 내용 또는 순서가 다릅니다")
         files[path.name] = {**fingerprint(path), "rows": expected_rows[table],
                             "columns": {f.name: str(f.type) for f in schema},
                             "column_order": schema.names, "nullable": False,
@@ -245,7 +245,7 @@ def verify_package(con, staging: Path, train: dict, evaluation: dict, copying: d
             rows = list(csv.reader(stream, strict=True))
         expected = [["user_idx"], *[[str(user_idx)] for user_idx in ids]]
         if rows != expected or len(ids) != evaluation[period]["eligible_users"]:
-            raise RuntimeError(f"Reloaded CSV differs from distinct users in {period}_targets")
+            raise RuntimeError(f"다시 읽은 CSV가 {period}_targets의 고유 사용자와 다릅니다")
         files[path.name] = {**fingerprint(path), "rows": len(ids), "columns": {"user_idx": "decimal int32"},
                             "column_order": ["user_idx"], "encoding": "UTF-8", "header": True,
                             "sorted_by": ["user_idx"]}
@@ -255,7 +255,7 @@ def verify_package(con, staging: Path, train: dict, evaluation: dict, copying: d
     files["README.md"] = {**fingerprint(staging / "README.md"), "format": "UTF-8 Markdown"}
     files["COPYING"] = fingerprint(staging / "COPYING")
     if files["COPYING"] != copying or files["README.md"]["sha256"] != base.sha256(PACKAGE_README):
-        raise RuntimeError("Copied package documents differ from their inputs")
+        raise RuntimeError("복사한 패키지 문서가 입력 문서와 다릅니다")
     return files
 
 
@@ -264,34 +264,34 @@ def build_package(config: Path, output_root: Path, version: str, *,
                   example_script: Path | None = None, example_variant: str | None = None) -> Path:
     """원본 검증부터 최종 경로 확정까지 실행한다. 대체 입력 기준은 합성 테스트에서 사용한다."""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", version):
-        raise ValueError("Version must be a single safe directory name (1–80 characters)")
+        raise ValueError("버전은 영문·숫자로 시작하고 영문·숫자·점·밑줄·하이픈만 포함한 1~80자 폴더명이어야 합니다")
     output_root = output_root.resolve()
     settings = common.read_settings(config)
     raw = settings["raw_dir"]
     if output_root == raw or raw in output_root.parents:
-        raise ValueError("Output must not be inside raw_dir")
+        raise ValueError("출력 폴더는 raw_dir 밖에 지정해야 합니다")
     if output_root.is_relative_to(REPO):
         relative = output_root.relative_to(REPO).as_posix() + "/"
         ignored = subprocess.run(["git", "check-ignore", "--no-index", "-q", relative], cwd=REPO)
         if ignored.returncode != 0:
-            raise ValueError("Output inside the repository must be Git-ignored")
+            raise ValueError("저장소 안의 출력 폴더는 Git 제외 경로여야 합니다")
     final = output_root / version
     if os.path.lexists(final):
-        raise FileExistsError(f"Dataset version already exists: {version}")
+        raise FileExistsError(f"이미 존재하는 dataset 버전입니다: {version}")
     output_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=f".{version}-", dir=output_root) as folder:
         staging = Path(folder)
         build_staged_package(staging, config, settings, version, reference_path, expected_users,
                              example_script, example_variant)
         if os.path.lexists(final):
-            raise FileExistsError(f"Dataset version already exists: {version}")
+            raise FileExistsError(f"이미 존재하는 dataset 버전입니다: {version}")
         # 각 실행은 고유한 임시 폴더를 쓴다. POSIX rename은 다른 실행이 먼저
         # 확정한 비어 있지 않은 패키지 디렉터리를 교체할 수 없다.
         try:
             staging.rename(final)
         except OSError as error:
             if error.errno in (errno.EEXIST, errno.ENOTEMPTY):
-                raise FileExistsError(f"Dataset version already exists: {version}") from error
+                raise FileExistsError(f"이미 존재하는 dataset 버전입니다: {version}") from error
             raise
     return final
 
@@ -333,9 +333,9 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
         engine = base.one(con, "PRAGMA version")
 
     if common.fingerprint_inputs(raw) != before:
-        raise RuntimeError("Input changed during build")
+        raise RuntimeError("패키지 생성 중 입력이 변경됐습니다")
     if {key: base.sha256(path) for key, path in source_paths.items()} != source_hashes:
-        raise RuntimeError("Code or settings changed during build")
+        raise RuntimeError("패키지 생성 중 코드 또는 설정이 변경됐습니다")
     synthetic = example_script is not None
     command = ["python", "scripts/build_dataset.py", "--config", "<config>"]
     if synthetic:
@@ -350,36 +350,36 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
                    "license": "CC0-1.0", "license_evidence": "COPYING"},
         "input_files": before, "input_validation": inputs,
         "processing": {
-            "normalization": "DuckDB nfc_normalize, fixed whitespace runs to ASCII space, trim",
+            "normalization": "DuckDB nfc_normalize 후 고정된 연속 공백을 ASCII 공백 하나로 축약하고 양끝 공백 제거",
             "whitespace_codepoints": [f"U+{c:04X}" for c in base.WHITESPACE],
             "deduplication_key": ["user_id", "listened_at", "artist_key", "recording_key"],
             "exclusion_priority": list(common.EXCLUSION_REASONS),
-            "event_original_names": "First original name pair by UTF-8 bytes per deduplication key",
-            "display_names": "Most frequent original name pair in clean train, UTF-8 byte order for ties",
+            "event_original_names": "deduplication key마다 원문 이름 쌍을 UTF-8 byte 순으로 정렬해 첫 쌍 선택",
+            "display_names": "정제된 train에서 가장 자주 나온 원문 이름 쌍 선택, 동률은 UTF-8 byte 순",
             "train_fixed_for_both_periods": True, "cleaning": cleaning,
         },
         "mapping": {"start": 0, "dtype": "int32", "users": train["users"], "items": train["items"],
-                    "user_id_order": "numeric ascending", "item_key_order": "tuple of UTF-8 bytes ascending",
+                    "user_id_order": "숫자 오름차순", "item_key_order": "UTF-8 byte tuple 오름차순",
                     "users_sha256": files["users.parquet"]["sha256"],
                     "items_sha256": files["items.parquet"]["sha256"]},
         "evaluation": {
-            "candidate_rule": "Entire train catalog minus this user's original train items",
-            "target_rule": "Distinct period items intersected with candidates",
+            "candidate_rule": "train 전체 catalog에서 해당 사용자의 원래 train 청취곡을 제외한 집합",
+            "target_rule": "해당 기간의 고유 청취곡과 candidate 집합의 교집합",
             "min_candidates": MIN_CANDIDATES, "min_targets": 1,
             "user_exclusion_priority": list(USER_EXCLUSIONS),
-            "pair_accounting": ("Pair categories are disjoint. Unique items and users can overlap across "
-                                "categories and must not be summed."),
+            "pair_accounting": ("user-item pair의 제외 범주는 배타적이다. 고유곡 수와 사용자 수는 "
+                                "범주 간 중복될 수 있으므로 합산하지 않는다."),
             "periods": evaluation,
         },
         "files": files,
         "validation": {
             "status": "passed",
-            "scope": "Package generation and reload integrity",
-            "checks": ["input bytes/SHA256 and cohort", "exclusive cleaning and split accounting",
-                       "evaluation event/pair/cohort accounting", "Parquet schema and ordered rows vs build tables",
-                       "CSV users vs distinct target users", "CSR format, shape, nnz, canonical order and sum",
-                       "all CSR coordinates and counts vs saved interactions", "copied documents",
-                       "input, code and config SHA256 unchanged"],
+            "scope": "패키지 생성과 재로딩 무결성",
+            "checks": ["입력 bytes·SHA256과 cohort", "배타적 정제 제외와 split 보존 집계",
+                       "평가 사건·고유 쌍·cohort 집계", "Parquet schema·정렬·행 내용과 생성 테이블 대조",
+                       "CSV 사용자와 target 고유 사용자 대조", "CSR format·shape·nnz·canonical 정렬·합계",
+                       "CSR 전체 좌표·횟수와 저장된 interactions 대조", "복사한 패키지 문서 대조",
+                       "입력·코드·설정 SHA256 보존"],
         },
         "execution": {
             "branch": trace["branch"], "head_at_execution": trace["head"],
@@ -396,7 +396,7 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
     manifest_path = staging / "dataset_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if json.loads(manifest_path.read_text(encoding="utf-8")) != manifest:
-        raise RuntimeError("Reloaded manifest differs from build metadata")
+        raise RuntimeError("다시 읽은 manifest가 생성 당시 metadata와 다릅니다")
 
 
 def main() -> None:

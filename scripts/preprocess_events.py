@@ -43,14 +43,14 @@ def read_reference(path: Path = REFERENCE) -> dict:
     with path.open("rb") as stream:
         files = tomllib.load(stream).get("files")
     if not isinstance(files, dict) or set(files) != set(base.REQUIRED_FILES):
-        raise ValueError("Input reference must describe exactly the six required files")
+        raise ValueError("입력 기준에는 필수 파일 6개의 정보가 있어야 합니다")
     for name, record in files.items():
         if not isinstance(record, dict) or set(record) != {"bytes", "sha256"}:
-            raise ValueError(f"Invalid input reference record: {name}")
+            raise ValueError(f"입력 기준 항목이 올바르지 않습니다: {name}")
         size, digest = record["bytes"], record["sha256"]
         if type(size) is not int or size < 0 or not isinstance(digest, str) or not re.fullmatch(
                 r"[0-9a-f]{64}", digest):
-            raise ValueError(f"Invalid bytes/SHA256 in input reference: {name}")
+            raise ValueError(f"입력 기준의 bytes 또는 SHA256이 올바르지 않습니다: {name}")
     return files
 
 
@@ -59,19 +59,19 @@ def fingerprint_inputs(raw_dir: Path) -> list[dict]:
     for name in base.REQUIRED_FILES:
         path = raw_dir / name
         if not path.is_file():
-            raise ValueError(f"Missing required input: {name}")
+            raise ValueError(f"필수 입력 파일이 없습니다: {name}")
         result.append({"file": name, "bytes": path.stat().st_size, "sha256": base.sha256(path)})
     return result
 
 
 def verify_input_files(raw_dir: Path, reference: dict) -> list[dict]:
     if set(reference) != set(base.REQUIRED_FILES):
-        raise ValueError("Exactly six input reference records are required")
+        raise ValueError("입력 기준에는 필수 파일 6개의 정보가 있어야 합니다")
     actual = fingerprint_inputs(raw_dir)
     for entry in actual:
         measured = {k: entry[k] for k in ("bytes", "sha256")}
         if measured != reference[entry["file"]]:
-            raise ValueError(f"Input bytes/SHA256 differ from the fixed input reference: {entry['file']}")
+            raise ValueError(f"입력 bytes/SHA256이 고정 기준과 다릅니다: {entry['file']}")
     return actual
 
 
@@ -80,11 +80,11 @@ def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dic
     con.read_parquet(str(raw_dir / base.REQUIRED_FILES[0])).create_view("raw_input")
     schema = [(r[0], r[1]) for r in con.execute("DESCRIBE raw_input").fetchall()]
     if schema != EXPECTED_SCHEMA:
-        raise ValueError("Parquet schema differs from the required column order/types")
+        raise ValueError("Parquet schema의 컬럼 순서 또는 자료형이 기준과 다릅니다")
     with (raw_dir / "selected_users.csv").open(encoding="utf-8", newline="") as stream:
         header = next(csv.reader(stream), [])
     if header != ["user_id", "train_unique_tracks", "user_index"]:
-        raise ValueError("Unexpected selected_users.csv header")
+        raise ValueError("selected_users.csv의 header가 기준과 다릅니다")
     con.execute("""CREATE TABLE selected_cohort AS SELECT * FROM read_csv(?, header=true,
         columns={'user_id':'BIGINT','train_unique_tracks':'BIGINT','user_index':'BIGINT'})""",
         [str(raw_dir / "selected_users.csv")])
@@ -95,7 +95,7 @@ def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dic
     if (cohort["rows"], cohort["users"], cohort["indices"], cohort["min_index"],
             cohort["max_index"], cohort["missing_fields"]) != (
             expected_users, expected_users, expected_users, 1, expected_users, 0):
-        raise ValueError("Selected cohort must be a non-null one-to-one mapping of the expected size")
+        raise ValueError("선정 cohort는 지정된 크기의 NULL 없는 일대일 매핑이어야 합니다")
     membership = base.one(con, """SELECT
         (SELECT count(*) FROM (SELECT DISTINCT user_id FROM raw_input WHERE user_id IS NOT NULL) r
             ANTI JOIN selected_cohort c USING(user_id)) AS raw_users_not_in_cohort,
@@ -103,7 +103,7 @@ def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dic
             (SELECT DISTINCT user_id FROM raw_input WHERE user_id IS NOT NULL) r USING(user_id))
             AS cohort_users_without_raw_rows""")
     if any(membership.values()):
-        raise ValueError("Parquet and selected cohort user sets differ (IDs withheld)")
+        raise ValueError("Parquet과 선정 cohort의 사용자 집합이 다릅니다")
     return {"schema": [{"column": n, "type": t} for n, t in schema],
             "cohort": {**cohort, **membership},
             "raw_rows": con.execute("SELECT count(*) FROM raw_input").fetchone()[0]}
@@ -150,7 +150,7 @@ def build_clean_events(con) -> dict:
     exclusions["duplicate_excess"] = dedup["duplicate_excess"]
     if (counts["valid_rows"] != dedup["events"] + dedup["duplicate_excess"]
             or counts["raw_rows"] != sum(exclusions.values()) + dedup["events"]):
-        raise RuntimeError("Raw/exclusion/unique event accounting does not reconcile")
+        raise RuntimeError("원본 행·제외 행·고유 사건 집계가 일치하지 않습니다")
     con.execute("ALTER TABLE clean_events DROP COLUMN source_rows")
 
     partitions = []
@@ -161,12 +161,12 @@ def build_clean_events(con) -> dict:
             count(*) FILTER (WHERE listened_at IS NULL OR listened_at < ?::TIMESTAMP
                 OR listened_at >= ?::TIMESTAMP) AS outside_split FROM {split}_events""", [start, end])
         if stats.pop("outside_split"):
-            raise RuntimeError(f"Clean events outside the UTC interval for {split}")
+            raise RuntimeError(f"{split}의 UTC 구간 밖에 정제 사건이 있습니다")
         partitions.append({"split": split, "start_inclusive_utc": start,
                            "end_exclusive_utc": end, **stats})
     kept = sum(p["events"] for p in partitions)
     if kept != dedup["events"]:
-        raise RuntimeError("UTC split counts do not cover all clean events")
+        raise RuntimeError("UTC split 집계가 모든 정제 사건을 포함하지 않습니다")
     # train만 읽는다. 1~9곡 사용자도 남기고 미래에만 활동한 사용자에게 학습 행을 만들지 않는다.
     con.execute("""CREATE TABLE train_pairs AS SELECT user_id, artist_key, recording_key,
         count(*)::BIGINT AS listen_count FROM train_events GROUP BY ALL""")
@@ -255,10 +255,10 @@ def read_settings(config_path: Path) -> dict:
                 for k in ("raw_dir", "cache_dir")}
     settings.update(memory_limit=cfg.get("memory_limit", "3GB"), threads=cfg.get("threads", 2))
     if type(settings["threads"]) is not int or not 1 <= settings["threads"] <= 4:
-        raise ValueError("threads must be an integer from 1 through 4")
+        raise ValueError("threads는 1부터 4 사이의 정수여야 합니다")
     raw, cache = settings["raw_dir"], settings["cache_dir"]
     if cache == raw or raw in cache.parents:
-        raise ValueError("Cache must not be inside raw_dir")
+        raise ValueError("cache 폴더는 raw_dir 밖에 지정해야 합니다")
     return settings
 
 
@@ -312,21 +312,21 @@ def main() -> None:
     if args.report:
         report_path = args.report.resolve()
         if report_path == settings["raw_dir"] or settings["raw_dir"] in report_path.parents:
-            raise ValueError("Report must not be inside raw_dir")
+            raise ValueError("보고서는 raw_dir 밖에 저장해야 합니다")
         if report_path.suffix != ".md" or report_path.exists():
-            raise ValueError("Report must be a new .md file; existing reports are preserved")
+            raise ValueError("보고서는 아직 존재하지 않는 .md 파일이어야 합니다")
     started = time.monotonic()
     before = verify_input_files(settings["raw_dir"], read_reference())
     result = {"input_files": before}
     with working_connection(settings) as con:
         result["input_validation"] = validate_input_tables(con, settings["raw_dir"])
         if not args.inputs_only:
-            print("[preprocessing] input verified; cleaning and splitting", flush=True)
+            print("[preprocessing] 입력 검증 완료, 정제·시간 split 실행", flush=True)
             result["cleaning"] = build_clean_events(con)
-            print("[preprocessing] train-only quality diagnostics", flush=True)
+            print("[preprocessing] train 기준 품질 진단", flush=True)
             result["quality"] = quality_diagnostics(con)
     if fingerprint_inputs(settings["raw_dir"]) != before:
-        raise RuntimeError("Input changed during execution; no report written")
+        raise RuntimeError("실행 중 입력이 변경돼 보고서 생성을 중단했습니다")
     repo = Path(__file__).resolve().parents[1]
     def git(*parts):
         completed = subprocess.run(["git", *parts], cwd=repo, capture_output=True, text=True)

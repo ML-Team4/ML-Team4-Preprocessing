@@ -108,9 +108,9 @@ class EventCleaningTest(unittest.TestCase):
                    (1, "2026-09-28", "Artist", "Song"),
                    (1, "2026-10-05", "Artist", "Song")]
         for fault, message in [
-            ("DELETE FROM clean_events WHERE split = 'validation'", "do not cover"),
-            ("UPDATE clean_events SET split = NULL WHERE split = 'validation'", "do not cover"),
-            ("UPDATE clean_events SET split = 'train' WHERE split = 'validation'", "UTC interval for train"),
+            ("DELETE FROM clean_events WHERE split = 'validation'", "모든 정제 사건"),
+            ("UPDATE clean_events SET split = NULL WHERE split = 'validation'", "모든 정제 사건"),
+            ("UPDATE clean_events SET split = 'train' WHERE split = 'validation'", "train의 UTC 구간 밖"),
         ]:
             with self.subTest(fault=fault), fixture_connection(records) as con:
                 # 중복 집계가 끝난 뒤 분할에만 오류를 주입한다.
@@ -252,7 +252,7 @@ class InputValidationTest(unittest.TestCase):
                     events.verify_input_files(self.raw, reference)
                 path.write_bytes(original)
         del reference["COPYING"]
-        with self.assertRaisesRegex(ValueError, "six"):
+        with self.assertRaisesRegex(ValueError, "6개"):
             events.verify_input_files(self.raw, reference)
 
     def test_cli_rejects_changed_input_even_when_audit_report_matches_it(self):
@@ -278,7 +278,7 @@ class InputValidationTest(unittest.TestCase):
             cwd=root, capture_output=True, text=True, timeout=30,
         )
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Input bytes/SHA256 differ from the fixed input reference: README.txt", result.stderr)
+        self.assertIn("입력 bytes/SHA256이 고정 기준과 다릅니다: README.txt", result.stderr)
         self.assertEqual(reference_path.read_bytes(), baseline)
 
     def test_schema_cohort_size_unique_mapping_and_membership_are_strict(self):
@@ -286,12 +286,12 @@ class InputValidationTest(unittest.TestCase):
             result = events.validate_input_tables(con, self.raw, expected_users=2)
             self.assertEqual(result["cohort"]["raw_users_not_in_cohort"], 0)
             self.assertEqual(result["raw_rows"], 2)
-        with duckdb.connect() as con, self.assertRaisesRegex(ValueError, "expected size"):
+        with duckdb.connect() as con, self.assertRaisesRegex(ValueError, "지정된 크기"):
             events.validate_input_tables(con, self.raw)  # CLI 기준은 항상 5,000명
         original = self.csv.read_text()
         for text, message in [
-            ("user_id,train_unique_tracks,user_index\n1,999,1\n2,999,1\n", "one-to-one"),
-            ("user_id,train_unique_tracks,user_index\n1,999,1\n3,999,2\n", "user sets differ"),
+            ("user_id,train_unique_tracks,user_index\n1,999,1\n2,999,1\n", "일대일"),
+            ("user_id,train_unique_tracks,user_index\n1,999,1\n3,999,2\n", "사용자 집합"),
             ("user_index,train_unique_tracks,user_id\n1,999,1\n2,999,2\n", "header"),
         ]:
             self.csv.write_text(text)
@@ -309,13 +309,13 @@ class InputValidationTest(unittest.TestCase):
         cfg = Path(self.tmp.name) / "paths.local.toml"
         cfg.write_text('raw_dir="raw"\ncache_dir="cache"\nmemory_limit="128MB"\nthreads=1\n')
         settings = events.read_settings(cfg)
-        with self.assertRaisesRegex(RuntimeError, "fixture failure"):
+        with self.assertRaisesRegex(RuntimeError, "테스트용 오류"):
             with events.working_connection(settings) as con:
                 con.execute("CREATE TABLE fixture AS SELECT 1 AS value")
-                raise RuntimeError("fixture failure")
+                raise RuntimeError("테스트용 오류")
         self.assertEqual(list(settings["cache_dir"].iterdir()), [])
         cfg.write_text('raw_dir="raw"\ncache_dir="raw/cache"\n')
-        with self.assertRaisesRegex(ValueError, "inside raw_dir"):
+        with self.assertRaisesRegex(ValueError, "raw_dir 밖"):
             events.read_settings(cfg)
 
     def test_cli_refuses_to_overwrite_existing_report_before_work_starts(self):
@@ -326,7 +326,7 @@ class InputValidationTest(unittest.TestCase):
         before = report.read_bytes()
         with patch.object(sys, "argv", ["preprocess_events.py", "--config", str(cfg),
                                         "--report", str(report)]):
-            with self.assertRaisesRegex(ValueError, "existing reports are preserved"):
+            with self.assertRaisesRegex(ValueError, "아직 존재하지 않는 .md"):
                 events.main()
         self.assertEqual(report.read_bytes(), before)
         self.assertFalse((Path(self.tmp.name) / "cache").exists())

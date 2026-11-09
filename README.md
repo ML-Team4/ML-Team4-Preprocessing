@@ -111,6 +111,8 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 
 ## 문서 안내
 
+설명 문서와 코드 주석은 한국어로 작성한다. 변수·함수·컬럼명과 기술 용어는 영어로 표기하며, 그래프 제목·축·범례도 영어로 작성한다. 반복해서 사용하는 기술 용어와 원문 보존 기준은 [AGENTS.md](AGENTS.md)에 기록했다.
+
 - [원본 점검 결과 (Markdown)](reports/raw-data-audit.md)
 - [전처리 타당성과 모델 적합성 추가 검토 (Markdown)](reports/model-readiness-review.md)
 - [입력 검증·정제·분할 실행 보고서](reports/cleaning-split-validation.md)
