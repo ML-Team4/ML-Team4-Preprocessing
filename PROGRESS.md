@@ -1,6 +1,6 @@
 # 공통 데이터 작업 진행 상황
 
-갱신일: 2026-11-09 (Asia/Seoul). 현재 작업은 **Issue #5의 문서·코드 언어 표기 통일, 로컬 작업·검증 완료, 게시 승인 대기**다. 학습·평가 패키지 생성기는 PR #3으로 main에 반영됐다.
+갱신일: 2026-11-09 (Asia/Seoul). 현재 작업은 **Issue #5의 문서·코드 언어 표기 통일, PR #6 게시 완료**다. 학습·평가 패키지 생성기는 PR #3으로 main에 반영됐다.
 
 ## 완료
 
@@ -197,7 +197,13 @@ validation 정답 `(0, 1)`은 test에도 남았다. 후보 9개 사용자와 정
 shasum -a 256 .cache/datasets/synthetic-language-v1/dataset_manifest.json
 ```
 
-이번 검사는 Python 3.13.7, DuckDB 1.4.4, NumPy 2.2.6, SciPy 1.15.3, PyArrow 20.0.0에서 실행했다. EDA 보고서와 그래프는 아직 없으므로 해당 산출물의 언어 검사는 EDA 구현 시 진행한다. 전체 원본 패키지 실행과 성능 측정은 별도 검증 범위다. 현재 언어 변경은 로컬 검토용이며, 게시 승인 후 `docs/language-consistency`를 게시하고 PR에서 `Closes #5`로 연결한다.
+이번 검사는 Python 3.13.7, DuckDB 1.4.4, NumPy 2.2.6, SciPy 1.15.3, PyArrow 20.0.0에서 실행했다. EDA 보고서와 그래프는 아직 없으므로 해당 산출물의 언어 검사는 EDA 구현 시 진행한다. 전체 원본 패키지 실행과 성능 측정은 별도 검증 범위다.
+
+## 11월 9일 · 언어 표기 통일 PR 게시
+
+게시 승인 후 테스트 21개, `pip check`, AST·문서 내부 링크·언어 표기 검사를 다시 통과했다. 임시 경로에 재생성한 합성 패키지의 데이터·README hash가 보관본과 일치했고 한국어 로딩 예제도 성공했다.
+
+승인된 18개 파일을 `646edee29e8c413e5dc7c300d88cb8890c40c900`으로 커밋하고 `git push -u origin docs/language-consistency`로 게시했다. [PR #6 · 문서·코드 설명과 기술 용어 표기 통일](https://github.com/ML-Team4/ML-Team4-Preprocessing/pull/6)의 base는 `main`, head는 `docs/language-consistency`이며 `Closes #5`로 Issue를 연결했다. Issue #5의 진행 기록에도 PR 링크와 검증 결과를 남겼다. main 머지는 사용자 담당이다.
 
 ## 원본 점검 첫 커밋 준비 당시 Git 기록
 
