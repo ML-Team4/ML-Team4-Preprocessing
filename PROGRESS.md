@@ -1,6 +1,6 @@
 # 공통 데이터 작업 진행 상황
 
-갱신일: 2026-11-09 (Asia/Seoul). 현재 상태는 **학습·평가 패키지 생성기 구현 및 합성 입력 저장·재로딩 완료, 게시 승인 대기**다.
+갱신일: 2026-11-09 (Asia/Seoul). 현재 상태는 **학습·평가 패키지 생성기 구현 및 합성 입력 저장·재로딩 완료, PR #3 게시 완료**다.
 
 ## 완료
 
@@ -168,11 +168,14 @@ validation 정답 `(0, 1)`은 test에도 남았다. 후보 9개 사용자와 정
 
 저장소 루트에서 `.venv/bin/python -m unittest discover -s tests -v`로 회귀 검사를 다시 실행하고, `shasum -a 256 .cache/datasets/synthetic-preflight-v1/dataset_manifest.json`으로 보관본을 확인할 수 있다.
 
-## 남은 작업과 게시 절차
+## 11월 9일 · 패키지 생성기 PR 게시
 
-1. [Issue #1](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/1), 현재 작업 트리, 패키지 생성기 상세 보고 및 실제 게시 승인 메시지를 확인한다. 게시 전 작업은 로컬 `work/dataset-build`에 있다.
-2. 명시적 승인 뒤 승인된 파일만 커밋하고 `git push -u origin work/dataset-build`로 게시한다. base `main`, head `work/dataset-build`의 PR에 `Refs #1`을 넣고 Issue에 PR 링크를 남긴다. Issue는 열어 두고 main 머지는 사용자가 한다.
-3. 전체 원본 검증은 패키지 생성기 PR 머지 후 최신 `origin/main`에서 시작한다. [전체 원본 생성 명령](README.md#학습평가-패키지-생성)을 사용하고 입력 불변성·전체 기대 집합·자원 사용량을 확인한다.
+검토와 게시 승인을 받은 20개 파일을 `5ca64a59996f2f758315f8deb59a93d0416622a3`으로 커밋하고 `git push -u origin work/dataset-build`로 게시했다. [PR #3 · 공통 학습·평가 파일과 검증 패키지 생성](https://github.com/ML-Team4/ML-Team4-Preprocessing/pull/3)의 base는 `main`, head는 `work/dataset-build`이며 본문에 `Refs #1`, 구현 범위, 검사 결과와 재현 명령을 기록했다.
+
+## 전체 원본 검증 준비
+
+1. [Issue #1](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/1)의 진행 기록과 [PR #3](https://github.com/ML-Team4/ML-Team4-Preprocessing/pull/3)의 main 머지 여부를 확인한다. main 머지는 사용자 담당이며 Issue #1은 후속 검증을 위해 열린 상태로 유지한다.
+2. 전체 원본 검증은 패키지 생성기 PR 머지 후 최신 `origin/main`에서 시작한다. [전체 원본 생성 명령](README.md#학습평가-패키지-생성)을 사용하고 입력 불변성·전체 기대 집합·자원 사용량을 확인한다.
 
 ## 원본 점검 첫 커밋 준비 당시 Git 기록
 
