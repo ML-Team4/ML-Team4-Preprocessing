@@ -115,26 +115,18 @@ train 품질 진단은 별도 관계에서 집계했다. 이름 이상은 455사
 | validation 제외 / test 제외 | 우선순위대로 `1 / 2 / 1 / 1`명 / `1 / 2 / 0 / 1`명 |
 | validation 신규곡 / 기청취곡 | 3사건·1곡·2쌍·2명 / 2사건·2곡·2쌍·2명 |
 
-합성 예제는 `.cache/datasets/` 아래에 보관되어 있으며 정확한 버전은 manifest의 `dataset_version`에 기록되어 있다. UTC 2026-11-08 14:23:49에 생성했고,
-계약·규칙 버전은 각각 `1.0.0`이다. 패키지는 11파일,
-22,849바이트다. 13,375바이트인 manifest의 SHA256은
-`6b158d51bbab65bd7da305e5e2c04e11090c11e7a7438d86b2f632e2479bfda1`이다.
-나머지 10파일의 크기와 SHA256은 manifest의 `files`에 있다.
-생성 당시 HEAD는 위 머지 커밋, 생성 코드는 미커밋 상태였다.
+합성 입력에서 패키지 11파일의 저장과 재로딩을 확인했다. 생성 당시 HEAD는 위 머지 커밋이고 생성 코드는 미커밋 상태였다. 검증을 마친 합성 패키지는 정리했다.
 
 macOS 27.2 arm64, Python 3.13.7, DuckDB 1.4.4, NumPy 2.2.6, SciPy 1.15.3,
 PyArrow 20.0.0에서 실행했다. DuckDB 설정은 `memory_limit=3GB`, `threads=2`다.
 NFC 라이브러리 버전은 [고정 DuckDB 소스](https://github.com/duckdb/duckdb/blob/v1.4.4/third_party/utf8proc/utf8proc.cpp)의 utf8proc 2.9.0·Unicode 15.1.0이다.
 
-저장소 루트에서 재현할 수 있는 명령은 아래와 같다. 예제 버전 이름이 이미 존재하면
-`--version`을 새 이름으로 바꾼다. 재실행 manifest에는 현재 코드와 실행 시각이 기록되므로 SHA256은 위 과거 실행 기록과 달라질 수 있다. 입력과 테스트 임시 폴더는 실행 후 정리된다.
+저장소 루트에서 재현할 수 있는 명령은 아래와 같다. 테스트가 임시 폴더에 입력과 패키지를 생성하고 실행 후 정리한다.
 
 ```bash
 .venv/bin/python scripts/preprocess_events.py --config config/paths.local.toml --inputs-only
-.venv/bin/python tests/test_build_dataset.py --variant original --output-root .cache/datasets --version synthetic-example-review-v1
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m pip check
-shasum -a 256 .cache/datasets/synthetic-example-review-v1/dataset_manifest.json
 git diff --check
 ```
 
@@ -150,11 +142,7 @@ validation 정답 `(0, 1)`은 test에도 남았다. 후보 9개 사용자와 정
 
 ## 11월 9일 · 합성 예제 재생성
 
-기능과 검증 범위가 드러나도록 문서와 실행 설명을 정리했다. 당시 생성한 예제는
-`.cache/datasets/synthetic-example-v1/`에 있다. 15:36:33 KST에 생성한 11파일은
-총 22,861바이트다. manifest의 SHA256은
-`6990a57fe6aea044d989e7a779d0129c7f50657336ef47714bf412a0c7724175`다.
-나머지 10파일의 해시와 정제·평가 집계는 앞서 저장한 예제와 모두 일치했다.
+기능과 검증 범위가 드러나도록 문서와 실행 설명을 정리했다. 당시 재생성한 예제의 데이터·문서 10파일의 해시와 정제·평가 집계는 앞서 생성한 예제와 모두 일치했다.
 전체 테스트 19개, 실제 원본 입력 검증, 새 패키지의 README 로딩 예제를 다시 확인했다.
 
 ## 11월 9일 · 패키지 게시 전 검증
@@ -164,9 +152,9 @@ validation 정답 `(0, 1)`은 test에도 남았다. 후보 9개 사용자와 정
 - 작업 환경과 새 가상환경을 사용한 별도 로컬 복제본에서 각각 **21개 테스트 통과**. 복제본에는 게시 후보 20개 파일을 적용했고, 개인 설정 없이 고정 의존성 설치·`pip check`·합성 예제 생성·동봉 README 실행을 확인했다.
 - 실제 입력 여섯 파일은 실행 전후 크기·SHA256이 기준과 일치했다. 9,350,628행, 선정 사용자 5,000명, Parquet과 선정 CSV의 사용자 집합 차이는 양방향 0명이었다. 전체 원본에서 패키지를 만드는 검증은 별도 작업이다.
 - 별도 합성 입력 3,752행에서 Python 기준으로 계산한 학습 매핑·대표 이름·청취 횟수·고유 청취자 수와 저장값이 일치했다. validation 28명·307쌍, test 29명·321쌍이며 각 기간 정답 누락·초과는 모두 0쌍이었다.
-- 검토용 패키지 `.cache/datasets/synthetic-preflight-v1/`는 11파일, 총 22,865바이트다. manifest SHA256은 `c36ddcecd84def01bda7f9628e036f9351eed261471d02af6e5ca9c41ee1fbc3`이다. 개별 산출물 10개가 앞선 합성 예제와 바이트 단위로 일치했다. 동일 버전 재실행을 거부한 뒤에도 기존 파일 11개의 해시가 유지됐다.
+- 합성 패키지의 개별 산출물 10개가 앞선 합성 예제와 바이트 단위로 일치했다. 동일 버전 재실행을 거부한 뒤에도 기존 파일 11개의 해시가 유지됐다.
 
-저장소 루트에서 `.venv/bin/python -m unittest discover -s tests -v`로 회귀 검사를 다시 실행하고, `shasum -a 256 .cache/datasets/synthetic-preflight-v1/dataset_manifest.json`으로 보관본을 확인할 수 있다.
+저장소 루트에서 `.venv/bin/python -m unittest discover -s tests -v`로 회귀 검사를 다시 실행할 수 있다.
 
 ## 11월 9일 · 패키지 생성기 PR 게시
 
@@ -185,16 +173,14 @@ validation 정답 `(0, 1)`은 test에도 남았다. 후보 9개 사용자와 정
 - 코드 주석·설정 안내·실행 메시지·오류 설명과 manifest의 설명 문장을 한국어로 정리했다. 한국어 오류 메시지와 README 출력 설명을 확인하도록 기존 테스트의 기대 문구도 맞췄다.
 - Python 파일 8개의 AST를 대조해 식별자·계산·분기·SQL·dict key가 origin/main과 일치함을 확인했다. 보고서의 통계와 기존 실행 시점의 hash 기록을 보존했다.
 - 기존 테스트 21개와 `pip check`가 통과했다. 실제 원본 6개 파일의 bytes·SHA256, 9,350,628행의 schema와 선정 사용자 5,000명도 다시 확인했다. 초기 검사에서 이전 영문 오류를 기대하던 테스트 2곳을 찾아 한국어 문구로 수정했다.
-- `.cache/datasets/synthetic-language-v1/`에 새 합성 패키지 11파일, 총 23,121byte를 생성했다. dataset 버전은 `synthetic-language-v1`, 계약·규칙 버전은 각각 `1.0.0`이다. 13,634byte인 manifest의 SHA256은 `5e4e3871db5d4f6466412b74ad6559a388e1f36e10f38add26c5092578696b3c`다. 생성 당시 HEAD는 위 main 커밋이며 실제 미커밋 코드·설정 hash는 manifest에 기록했다.
+- 수정한 패키지 README와 manifest 설명을 합성 입력으로 검증했다. 생성 당시 HEAD는 위 main 커밋이며 실제 생성 코드와 설정 hash를 확인했다.
 - 새 패키지의 데이터 8파일과 COPYING이 앞선 보관본과 byte 단위로 일치했고, 기존 보관본 11파일의 hash도 모두 유지됐다. CSR은 shape `(5, 11)`, nnz 15, 횟수 합계 18이다. validation은 사용자 1명·target 1쌍, test는 사용자 2명·target 3쌍이다. 새 README 예제에서 파일 hash 대조와 데이터 로딩이 성공했다.
 
-저장소 루트에서 아래 명령으로 재현한다. 예제 버전이 이미 있으면 새 이름으로 실행한다. 새 manifest는 생성 시각과 Git 상태를 기록하므로 hash가 달라진다.
+저장소 루트에서 아래 명령으로 재현한다. 임시 원본과 패키지는 테스트가 종료되면 정리된다.
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m pip check
-.venv/bin/python tests/test_build_dataset.py --variant original --output-root .cache/datasets --version synthetic-language-review-v1
-shasum -a 256 .cache/datasets/synthetic-language-v1/dataset_manifest.json
 ```
 
 이번 검사는 Python 3.13.7, DuckDB 1.4.4, NumPy 2.2.6, SciPy 1.15.3, PyArrow 20.0.0에서 실행했다. EDA 보고서와 그래프는 아직 없으므로 해당 산출물의 언어 검사는 EDA 구현 시 진행한다. 전체 원본 패키지 실행과 성능 측정은 별도 검증 범위다.
@@ -204,6 +190,8 @@ shasum -a 256 .cache/datasets/synthetic-language-v1/dataset_manifest.json
 게시 승인 후 테스트 21개, `pip check`, AST·문서 내부 링크·언어 표기 검사를 다시 통과했다. 임시 경로에 재생성한 합성 패키지의 데이터·README hash가 보관본과 일치했고 한국어 로딩 예제도 성공했다.
 
 승인된 18개 파일을 `646edee29e8c413e5dc7c300d88cb8890c40c900`으로 커밋하고 `git push -u origin docs/language-consistency`로 게시했다. [PR #6 · 문서·코드 설명과 기술 용어 표기 통일](https://github.com/ML-Team4/ML-Team4-Preprocessing/pull/6)의 base는 `main`, head는 `docs/language-consistency`이며 `Closes #5`로 Issue를 연결했다. Issue #5의 진행 기록에도 PR 링크와 검증 결과를 남겼다. main 머지는 사용자 담당이다.
+
+검증용으로 보관했던 합성 패키지 4개·44파일은 이후 정리했다. README의 재현 안내도 임시 폴더를 자동 정리하는 기존 테스트 명령으로 맞췄다.
 
 ## 원본 점검 첫 커밋 준비 당시 Git 기록
 
