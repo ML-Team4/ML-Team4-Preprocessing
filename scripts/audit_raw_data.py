@@ -1,4 +1,4 @@
-"""원본을 변경하지 않고 품질 통계와 제한된 사례만 저장하는 1단계 점검.
+"""원본을 변경하지 않고 품질 통계와 제한된 사례만 저장하는 원본 점검.
 
 외부 코드를 복사하지 않고 작성했다. API와 SQL 출처 및 매개변수 설명은
 docs/audit-code-guide.md 참조. 정규화/중복 제거는 임시 진단 집계이며 전달용
@@ -314,14 +314,14 @@ def render_report(result: dict) -> str:
     lines.append("## 평가 데이터 제외 규모 진단\n\n성능 지표를 계산한 것이 아니다. 신규 곡과 학습 기청취곡은 서로 겹치지 않는다. 각 범주의 사용자 수는 서로 겹칠 수 있으므로 합산하지 않는다. no_target_users는 비활동 사용자를 포함한 원래 표본 기준이며 후보 부족과는 별도 조건이다.\n")
     for split,metrics in result["evaluation"].items():
         lines.extend([f"### {split}\n",table(metrics)])
-    lines.append("## 제한된 표본 점검\n\n각 범주에서 최대 설정 sample_size개를 빈도 내림차순과 명시적 동률 순서로 선정했다. 무작위 대표 표본이 아니다. audit_user_index는 기존 CSV의 1부터 시작하는 표시 ID이며 2단계 user_idx와 다르다. 제목 문자열은 JSON 이스케이프로 공백·제어문자를 표시한다.\n")
+    lines.append("## 제한된 표본 점검\n\n각 범주에서 최대 설정 sample_size개를 빈도 내림차순과 명시적 동률 순서로 선정했다. 무작위 대표 표본이 아니다. audit_user_index는 기존 CSV의 1부터 시작하는 표시 ID이며 공통 user_idx와 다르다. 제목 문자열은 JSON 이스케이프로 공백·제어문자를 표시한다.\n")
     for label,records in result["samples"].items():
         lines.extend([f"### {label}\n",table(records)])
     lines.extend(["## 해석과 한계\n",
         "과거 규칙은 `NFC(regexp_replace(trim(s), '\\s+', ' ', 'g'))`이며 로컬 기존 분석 스크립트에서 확인했다. 이를 같은 파일에 재적용한 수치와 현재 규칙을 위에서 대조한다. RE2의 `\\s`가 정리하지 않는 유니코드 공백과 trim 적용 순서의 차이가 있으므로 CSV의 train_unique_tracks를 새 규칙의 기대값으로 강제하지 않는다. 사용자 선정 순서는 유지한다.\n",
         "동일 사용자·동일 시각·동일 정규화 튜플의 초과 행만 중복 제거 대상으로 삼는다. 다른 시각의 반복은 실제 선호 신호일 수 있어 보존한다. 대소문자 차이나 라이브·리믹스·리마스터 표기는 의미가 다를 수 있어 자동 병합하지 않는다.\n",
         "과도한 청취량과 podcast·audiobook 등의 문자열은 검토 신호일 뿐이다. 네 컬럼만으로 재생 길이, 실제 사람의 청취, 음악 여부를 판정할 수 없으므로 해당 신호로 자동 삭제하지 않는다. 동명 곡의 오병합과 표기 차이의 과분리는 남는다.\n",
-        "여기서 재산출된 수치가 과거 검증 수치와 같더라도 최종 전달본 통계는 아니다. 최종 해시·ID·희소행렬·제외 사유별 산출물 검증은 2단계에서 수행한다. source_manifest의 공식 TAR 전체 해시를 검증한 것이 아니다.\n",
+        "여기서 재산출된 수치가 과거 검증 수치와 같더라도 최종 전달본 통계는 아니다. 최종 해시·ID·희소행렬·제외 사유별 산출물 검증은 패키지 생성 시 수행한다. source_manifest의 공식 TAR 전체 해시를 검증한 것이 아니다.\n",
         "## 진단 일별 규모\n",table(result["daily"]),
         "## 코드 추적\n",table(result["code_trace"]),
         "규칙과 전달 규격은 `docs/preprocessing-plan.md`, `docs/data-contract.md`를 따른다. 원본 사용자 식별자는 보고서에 싣지 않았다.\n"])
