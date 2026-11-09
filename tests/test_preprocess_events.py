@@ -278,7 +278,7 @@ class InputValidationTest(unittest.TestCase):
             cwd=root, capture_output=True, text=True, timeout=30,
         )
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Input bytes/SHA256 differ from phase 1: README.txt", result.stderr)
+        self.assertIn("Input bytes/SHA256 differ from the fixed input reference: README.txt", result.stderr)
         self.assertEqual(reference_path.read_bytes(), baseline)
 
     def test_schema_cohort_size_unique_mapping_and_membership_are_strict(self):

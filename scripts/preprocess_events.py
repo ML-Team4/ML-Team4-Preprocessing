@@ -1,8 +1,8 @@
-"""2-2 입력 검증·공통 정제·UTC 분할. 최종 전달 패키지는 다음 단계에서 만든다.
+"""입력 검증·공통 정제·UTC 시간 분할을 수행하고 학습용 SQL 관계를 제공한다.
 
 대규모 사건은 DuckDB 파일 DB 안에서 처리한다. 공개 반환값은 파일명·해시와
 집계뿐이며 원본 경로, 사용자 ID, 개인별 기록은 보고서에 포함하지 않는다.
-정규화 구현과 고정 경계는 1단계 audit_raw_data에서 재사용한다.
+정규화 구현과 고정 경계는 audit_raw_data에서 재사용한다.
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ REFERENCE = Path(__file__).resolve().parents[1] / "config/raw-input-reference.to
 
 
 def read_reference(path: Path = REFERENCE) -> dict:
-    """자동 생성 보고서와 분리한 1단계 입력 기준값을 읽는다."""
+    """자동 생성 보고서와 분리한 고정 입력 기준값을 읽는다."""
     with path.open("rb") as stream:
         files = tomllib.load(stream).get("files")
     if not isinstance(files, dict) or set(files) != set(base.REQUIRED_FILES):
@@ -71,7 +71,7 @@ def verify_input_files(raw_dir: Path, reference: dict) -> list[dict]:
     for entry in actual:
         measured = {k: entry[k] for k in ("bytes", "sha256")}
         if measured != reference[entry["file"]]:
-            raise ValueError(f"Input bytes/SHA256 differ from phase 1: {entry['file']}")
+            raise ValueError(f"Input bytes/SHA256 differ from the fixed input reference: {entry['file']}")
     return actual
 
 
@@ -80,7 +80,7 @@ def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dic
     con.read_parquet(str(raw_dir / base.REQUIRED_FILES[0])).create_view("raw_input")
     schema = [(r[0], r[1]) for r in con.execute("DESCRIBE raw_input").fetchall()]
     if schema != EXPECTED_SCHEMA:
-        raise ValueError("Parquet schema differs from the exact phase-1 column order/types")
+        raise ValueError("Parquet schema differs from the required column order/types")
     with (raw_dir / "selected_users.csv").open(encoding="utf-8", newline="") as stream:
         header = next(csv.reader(stream), [])
     if header != ["user_id", "train_unique_tracks", "user_index"]:
@@ -281,7 +281,7 @@ def working_connection(settings: dict):
 
 
 def render_report(result: dict) -> str:
-    lines = ["# 2-2 입력 검증·정제·UTC 분할 실행 기록", "",
+    lines = ["# 입력 검증·정제·UTC 분할 실행 기록", "",
              "최종 전달 패키지 생성 전의 전체 입력 검증·임시 정제 실행이다. "
              "원본 사용자 ID·개인별 기록·개인 경로는 포함하지 않는다.", "",
              "## 입력 파일 대조", "", "| 파일 | bytes | SHA256 |", "| --- | --- | --- |"]
@@ -298,7 +298,7 @@ def render_report(result: dict) -> str:
               "진단의 개인별 플래그는 임시 DB 안에만 있고 종료 시 삭제한다.", "",
               "중복 대표 원문은 원문 쌍의 UTF-8 바이트 순으로 선택한다. "
               "표시 이름은 정제된 train 사건의 원문 쌍 빈도, 같은 바이트 동률 순서로 결정한다. "
-              "매핑·CSR·평가 파일·manifest와 패키지 재로딩 검증은 다음 단계에 남아 있다.", ""]
+              "이 보고서의 검증 범위는 입력 파일과 정제·시간 분할 집계다.", ""]
     return "\n".join(lines)
 
 

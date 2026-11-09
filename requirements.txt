@@ -1,2 +1,5 @@
-# Stage 1 audits and stage 2 event cleaning. Python >=3.11; no pandas/dense arrays.
+# Python >=3.11; audits, event cleaning and sparse dataset packages.
 duckdb==1.4.4
+numpy==2.2.6
+pyarrow==20.0.0
+scipy==1.15.3
