@@ -17,6 +17,7 @@ from unittest.mock import patch
 import duckdb
 import numpy as np
 import pyarrow as pa
+import pyarrow.csv as arrow_csv
 import pyarrow.parquet as pq
 from scipy import sparse
 
@@ -113,8 +114,58 @@ def run_example(output_root, version, variant="original", *, rows=None):
                                    example_script=Path(__file__).resolve(), example_variant=variant)
 
 
+def read_table(path):
+    fields, _ = independent.SCHEMAS[path.stem]
+    return arrow_csv.read_csv(
+        path, parse_options=arrow_csv.ParseOptions(newlines_in_values=True),
+        convert_options=arrow_csv.ConvertOptions(column_types=dict(fields),
+                                                null_values=[], strings_can_be_null=False))
+
+
+def matrix_from_csv(package):
+    manifest = json.loads((package / "dataset_manifest.json").read_text())
+    data = read_table(package / "train_interactions.csv")
+    return sparse.csr_matrix((data["listen_count"].to_numpy(),
+        (data["user_idx"].to_numpy(), data["item_idx"].to_numpy())),
+        shape=(manifest["mapping"]["users"], manifest["mapping"]["items"]))
+
+
 def pairs(path):
-    return [(r["user_idx"], r["item_idx"]) for r in pq.read_table(path).to_pylist()]
+    return [(r["user_idx"], r["item_idx"]) for r in read_table(path).to_pylist()]
+
+
+def convert_to_legacy_package(package):
+    """과거 계약 패키지의 재검증 지원을 검사할 입력을 만든다."""
+    manifest_path = package / "dataset_manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    matrix = matrix_from_csv(package)
+    for name, (fields, _) in independent.SCHEMAS.items():
+        path = package / f"{name}.parquet"
+        table = read_table(package / f"{name}.csv")
+        schema = pa.schema([pa.field(key, dtype, nullable=False) for key, dtype in fields])
+        pq.write_table(table.cast(schema), path, compression="zstd")
+        entry = manifest["files"].pop(f"{name}.csv")
+        for key in ("format", "encoding", "header"):
+            entry.pop(key)
+        entry.update(build.fingerprint(path), compression="zstd")
+        manifest["files"][path.name] = entry
+        (package / f"{name}.csv").unlink()
+    for period in build.PERIODS:
+        path = package / f"{period}_users.csv"
+        text = path.read_text(encoding="utf-8-sig")
+        path.write_text(text, encoding="utf-8")
+        manifest["files"][path.name].update(build.fingerprint(path), encoding="UTF-8")
+    path = package / "train_counts.npz"
+    sparse.save_npz(path, matrix)
+    manifest["files"][path.name] = {**build.fingerprint(path), "format": "csr",
+        "axes": ["user_idx", "item_idx"], "shape": list(matrix.shape), "nnz": matrix.nnz,
+        "sum_counts": int(matrix.sum()), "canonical": True,
+        "matches_interactions_all_coordinates_and_values": True,
+        **{f"{key}_dtype": str(getattr(matrix, key).dtype) for key in ("data", "indices", "indptr")}}
+    manifest["contract_version"] = "1.0.0"
+    for name in ("users", "items"):
+        manifest["mapping"][f"{name}_sha256"] = manifest["files"][f"{name}.parquet"]["sha256"]
+    manifest_path.write_text(json.dumps(manifest))
 
 
 class DatasetBuildTest(unittest.TestCase):
@@ -122,7 +173,7 @@ class DatasetBuildTest(unittest.TestCase):
         directory = tempfile.TemporaryDirectory(prefix="dataset-test-")
         self.addCleanup(directory.cleanup)
         self.output = Path(directory.name).resolve()
-        # 여러 row group과 CSR 배치 경계, 동일 사용자 행의 배치 경계 통과도 확인한다.
+        # CSV 배치 경계와 동일 사용자 행의 배치 경계 통과를 확인한다.
         batches = patch.object(build, "BATCH_ROWS", 4)
         batches.start()
         self.addCleanup(batches.stop)
@@ -141,9 +192,9 @@ class DatasetBuildTest(unittest.TestCase):
                          {"missing_required": 0, "outside_window": 1, "empty_name": 0, "duplicate_excess": 1})
         self.assertEqual([p["events"] for p in cleaning["partitions"]], [18, 9, 5])
 
-        users = pq.read_table(package / "users.parquet").to_pylist()
+        users = read_table(package / "users.csv").to_pylist()
         self.assertEqual(users, [{"user_idx": i, "user_id": user} for i, user in enumerate([10, 20, 30, 40, 60])])
-        items = pq.read_table(package / "items.parquet").to_pylist()
+        items = read_table(package / "items.csv").to_pylist()
         self.assertEqual([(r["item_idx"], r["artist_key"], r["recording_key"]) for r in items],
                          [(i, *key) for i, key in enumerate(KEYS)])
         self.assertEqual((items[0]["artist_name"], items[0]["recording_name"]), (" Cafe\u0301", "t00"))
@@ -151,15 +202,15 @@ class DatasetBuildTest(unittest.TestCase):
         self.assertEqual([r["train_listener_count"] for r in items], [1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1])
         expected = [(0, 0, 2), (1, 1, 1), (1, 2, 1), (2, 3, 1), (3, 4, 1), (4, 1, 3)]
         expected += [(4, i, 1) for i in range(2, 11)]
-        interactions = pq.read_table(package / "train_interactions.parquet")
+        interactions = read_table(package / "train_interactions.csv")
         self.assertEqual(list(zip(*(col.to_pylist() for col in interactions.columns))), expected)
-        matrix = sparse.load_npz(package / "train_counts.npz")
+        matrix = matrix_from_csv(package)
         self.assertEqual((matrix.shape, matrix.nnz, int(matrix.sum())), ((5, 11), 15, 18))
         self.assertEqual([matrix.shape[1] - matrix.getrow(i).nnz for i in (0, 1)], [10, 9])
-        self.assertEqual(pairs(package / "validation_targets.parquet"), [(0, 1)])
-        self.assertEqual(pairs(package / "test_targets.parquet"), [(0, 1), (0, 2), (3, 3)])
-        self.assertEqual((package / "validation_users.csv").read_text(), "user_idx\n0\n")
-        self.assertEqual((package / "test_users.csv").read_text(), "user_idx\n0\n3\n")
+        self.assertEqual(pairs(package / "validation_targets.csv"), [(0, 1)])
+        self.assertEqual(pairs(package / "test_targets.csv"), [(0, 1), (0, 2), (3, 3)])
+        self.assertEqual((package / "validation_users.csv").read_text(encoding="utf-8-sig"), "user_idx\n0\n")
+        self.assertEqual((package / "test_users.csv").read_text(encoding="utf-8-sig"), "user_idx\n0\n3\n")
 
         validation, test = (manifest["evaluation"]["periods"][period] for period in build.PERIODS)
         self.assertEqual(validation["user_exclusions"],
@@ -180,27 +231,56 @@ class DatasetBuildTest(unittest.TestCase):
         self.assertIn("baseline (5, 11) 15", result.stdout)
         self.assertIn("test 첫 평가 사용자의 target 수 2", result.stdout)
 
+    def test_csv_names_and_large_integer_roundtrip(self):
+        names = ["쉼표,가수", '따옴표"가수', "개행\n가수", "NA", "NULL", "null", "곡\r\n제목"]
+        rows = [(9223372036854775806, TRAIN, name, name) for name in names]
+        with example_input(rows) as source:
+            package = build.build_package(output_root=self.output, version="csv-names", **source)
+            items = read_table(package / "items.csv").to_pylist()
+            self.assertEqual({row["artist_name"] for row in items}, set(names))
+            self.assertEqual({row["recording_name"] for row in items}, set(names))
+            self.assertEqual(read_table(package / "users.csv")["user_id"].to_pylist(),
+                             [9223372036854775806])
+            self.assertEqual(len(list(package.glob("*.csv"))), 7)
+            self.assertEqual(list(package.glob("*.parquet")), [])
+            self.assertEqual(list(package.glob("*.npz")), [])
+            self.assertTrue(independent.validate_dataset(package=package, **source)["matches"])
+            manifest_path = package / "dataset_manifest.json"
+            original_manifest = manifest_path.read_text()
+            for name in ("train_interactions.csv", "validation_users.csv"):
+                with self.subTest(missing_bom=name):
+                    path = package / name
+                    contents = path.read_bytes()
+                    path.write_bytes(contents[3:])
+                    manifest = json.loads(original_manifest)
+                    manifest["files"][name].update(build.fingerprint(path))
+                    manifest_path.write_text(json.dumps(manifest))
+                    with self.assertRaisesRegex(ValueError, "UTF-8 BOM"):
+                        independent.validate_dataset(package=package, **source)
+                    path.write_bytes(contents)
+                    manifest_path.write_text(original_manifest)
+
     def test_row_order_and_future_activity_invariance(self):
         baseline = run_example(self.output, "original")
         shuffled = run_example(self.output, "shuffled", "shuffled")
         future = run_example(self.output, "future", "future")
         for name in ("users", "items", "train_interactions"):
-            table = pq.read_table(baseline / f"{name}.parquet")
+            table = read_table(baseline / f"{name}.csv")
             for variant in (shuffled, future):
-                self.assertTrue(table.equals(pq.read_table(variant / f"{name}.parquet")))
-        matrix = sparse.load_npz(baseline / "train_counts.npz")
+                self.assertTrue(table.equals(read_table(variant / f"{name}.csv")))
+        matrix = matrix_from_csv(baseline)
         for variant in (shuffled, future):
-            other = sparse.load_npz(variant / "train_counts.npz")
+            other = matrix_from_csv(variant)
             self.assertEqual(matrix.shape, other.shape)
             for attribute in ("indptr", "indices", "data"):
                 np.testing.assert_array_equal(getattr(matrix, attribute), getattr(other, attribute))
         for period in build.PERIODS:
-            self.assertEqual(pairs(baseline / f"{period}_targets.parquet"),
-                             pairs(shuffled / f"{period}_targets.parquet"))
+            self.assertEqual(pairs(baseline / f"{period}_targets.csv"),
+                             pairs(shuffled / f"{period}_targets.csv"))
             self.assertEqual((baseline / f"{period}_users.csv").read_bytes(),
                              (shuffled / f"{period}_users.csv").read_bytes())
-        self.assertEqual(pairs(future / "validation_targets.parquet"), [(0, 3)])
-        self.assertEqual(pairs(future / "test_targets.parquet"), [])
+        self.assertEqual(pairs(future / "validation_targets.csv"), [(0, 3)])
+        self.assertEqual(pairs(future / "test_targets.csv"), [])
 
     def test_independent_validation_rejects_changed_contents_with_updated_hashes(self):
         with example_input(fixture_rows("original")) as source:
@@ -211,17 +291,24 @@ class DatasetBuildTest(unittest.TestCase):
             self.assertEqual(result["evaluation"]["test"]["target_pairs"], 3)
 
             # 규모와 파일 해시 검사가 통과해도 같은 값의 다른 좌표와 같은 합계의 다른 횟수를 잡아낸다.
-            targets = package / "validation_targets.parquet"
-            original = pq.read_table(targets)
-            pq.write_table(pa.Table.from_arrays([original["user_idx"], pa.array([2], type=pa.int32())],
-                                               schema=original.schema), targets, compression="zstd")
+            targets = package / "validation_targets.csv"
+            original = read_table(targets)
+            with targets.open("wb") as stream:
+                stream.write(b"\xef\xbb\xbf")
+                arrow_csv.write_csv(pa.Table.from_arrays(
+                    [original["user_idx"], pa.array([2], type=pa.int32())],
+                    schema=original.schema), stream)
             users = package / "test_users.csv"
-            users.write_text("user_idx\n1\n3\n", encoding="utf-8")
-            counts = package / "train_counts.npz"
-            matrix = sparse.load_npz(counts)
-            matrix.data[0] -= 1
-            matrix.data[1] += 1
-            sparse.save_npz(counts, matrix)
+            users.write_text("user_idx\n1\n3\n", encoding="utf-8-sig")
+            counts = package / "train_interactions.csv"
+            table = read_table(counts)
+            values = table["listen_count"].to_pylist()
+            values[0] -= 1
+            values[1] += 1
+            table = table.set_column(2, "listen_count", pa.array(values, type=pa.int64()))
+            with counts.open("wb") as stream:
+                stream.write(b"\xef\xbb\xbf")
+                arrow_csv.write_csv(table, stream)
             manifest_path = package / "dataset_manifest.json"
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             for path in (targets, users, counts):
@@ -235,23 +322,22 @@ class DatasetBuildTest(unittest.TestCase):
                 "expected_users": {"missing": 1, "extra": 1},
                 "stored_target_users": {"missing": 1, "extra": 1},
             })
-            self.assertEqual(changed["csr"]["mismatching_ordered_entries"], 2)
+            self.assertEqual(changed["set_differences"]["train_interactions"], {"missing": 2, "extra": 2})
 
     def test_independent_validation_rejects_manifest_metadata_changes(self):
         changes = [
             (("mapping", "start"), 1), (("mapping", "users"), 0), (("mapping", "items"), 0),
             (("mapping", "dtype"), "int64"), (("mapping", "users_sha256"), "0" * 64),
             (("mapping", "items_sha256"), "0" * 64),
-            (("files", "items.parquet", "column_order"), ["item_idx"]),
-            (("files", "items.parquet", "columns"), {"item_idx": "string"}),
-            (("files", "items.parquet", "sorted_by"), ["artist_key"]),
-            (("files", "items.parquet", "nullable"), True),
-            (("files", "items.parquet", "compression"), "snappy"),
+            (("files", "items.csv", "column_order"), ["item_idx"]),
+            (("files", "items.csv", "columns"), {"item_idx": "string"}),
+            (("files", "items.csv", "sorted_by"), ["artist_key"]),
+            (("files", "items.csv", "nullable"), True),
+            (("files", "items.csv", "encoding"), "UTF-16"),
+            (("files", "items.csv", "format"), "parquet"),
             (("files", "test_users.csv", "columns"), {"user_idx": "string"}),
             (("files", "test_users.csv", "header"), False),
             (("files", "test_users.csv", "encoding"), "UTF-16"),
-            (("files", "train_counts.npz", "axes"), ["item_idx", "user_idx"]),
-            (("files", "train_counts.npz", "format"), "csc"),
             (("source", "license"), "unsupported"),
             (("source", "snapshot_utc"), "2000-01-01"),
             (("execution", "source_and_config_sha256"), {}),
@@ -279,6 +365,7 @@ class DatasetBuildTest(unittest.TestCase):
     def test_independent_validation_checks_npz_arrays_before_scipy(self):
         with example_input(fixture_rows("original")) as source:
             package = build.build_package(output_root=self.output, version="csr-structure", **source)
+            convert_to_legacy_package(package)
             path = package / "train_counts.npz"
             with np.load(path, allow_pickle=False) as stored:
                 original = {name: stored[name] for name in stored.files}
@@ -315,18 +402,22 @@ class DatasetBuildTest(unittest.TestCase):
 
     def test_validation_failure_cleans_staging_and_reuse_preserves_version(self):
         version = "guarded"
-        write_csr = build.write_csr
+        write_csv = build.write_csv
 
-        def corrupt_counts(staging, train):
-            write_csr(staging, train)
-            path = staging / "train_counts.npz"
-            matrix = sparse.load_npz(path)
-            matrix.data[0] -= 1
-            matrix.data[1] += 1  # nnz, shape, 양수, 합계는 같아도 좌표별 값 검증에서 거부
-            sparse.save_npz(path, matrix)
+        def corrupt_counts(con, staging):
+            write_csv(con, staging)
+            path = staging / "train_interactions.csv"
+            table = read_table(path)
+            values = table["listen_count"].to_pylist()
+            values[0] -= 1
+            values[1] += 1
+            table = table.set_column(2, "listen_count", pa.array(values, type=pa.int64()))
+            with path.open("wb") as stream:
+                stream.write(b"\xef\xbb\xbf")
+                arrow_csv.write_csv(table, stream)
 
-        with patch.object(build, "write_csr", side_effect=corrupt_counts):
-            with self.assertRaisesRegex(RuntimeError, "CSR 좌표·횟수"):
+        with patch.object(build, "write_csv", side_effect=corrupt_counts):
+            with self.assertRaisesRegex(RuntimeError, "행 내용 또는 순서"):
                 run_example(self.output, version)
         self.assertEqual(list(self.output.iterdir()), [])
         package = run_example(self.output, version)
@@ -338,11 +429,11 @@ class DatasetBuildTest(unittest.TestCase):
 
     def test_empty_train_and_header_only_evaluation(self):
         package = run_example(self.output, "empty-train", rows=[(10, TEST, ARTIST, "future only")])
-        matrix = sparse.load_npz(package / "train_counts.npz")
+        matrix = matrix_from_csv(package)
         self.assertEqual((matrix.shape, matrix.nnz), ((0, 0), 0))
         for period in build.PERIODS:
-            self.assertEqual(pairs(package / f"{period}_targets.parquet"), [])
-            self.assertEqual((package / f"{period}_users.csv").read_text(), "user_idx\n")
+            self.assertEqual(pairs(package / f"{period}_targets.csv"), [])
+            self.assertEqual((package / f"{period}_users.csv").read_text(encoding="utf-8-sig"), "user_idx\n")
 
     def test_retry_same_version_after_process_exits_during_write(self):
         # 자식 프로세스를 정리 구문 실행 전에 종료해 부분 저장과 재시도를 확인한다.
@@ -352,7 +443,7 @@ from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0, 'tests')
 from test_build_dataset import build, run_example
-with patch.object(build, 'write_csr', side_effect=lambda *_: os._exit(73)):
+with patch.object(build, 'write_csv', side_effect=lambda *_: os._exit(73)):
     run_example(Path(sys.argv[1]), 'retry')
 """
         destination = self.output / "packages"
@@ -361,7 +452,7 @@ with patch.object(build, 'write_csr', side_effect=lambda *_: os._exit(73)):
         self.assertEqual(stopped.returncode, 73)
         self.assertFalse((destination / "retry").exists())
         package = run_example(destination, "retry")
-        self.assertEqual(pairs(package / "validation_targets.parquet"), [(0, 1)])
+        self.assertEqual(pairs(package / "validation_targets.csv"), [(0, 1)])
 
     def test_concurrent_builds_publish_only_one_package(self):
         ready = Barrier(2, timeout=30)
@@ -378,7 +469,7 @@ with patch.object(build, 'write_csr', side_effect=lambda *_: os._exit(73)):
         self.assertEqual(sum(isinstance(error, FileExistsError) for error in errors), 1)
         package = self.output / "concurrent"
         self.assertEqual(list(self.output.iterdir()), [package])
-        self.assertEqual(pairs(package / "test_targets.parquet"), [(0, 1), (0, 2), (3, 3)])
+        self.assertEqual(pairs(package / "test_targets.csv"), [(0, 1), (0, 2), (3, 3)])
 
 
 if __name__ == "__main__":
