@@ -1,4 +1,4 @@
-# Data and all generated model/preprocessing artifacts stay outside Git.
+# 원본 데이터와 모델·전처리 생성물은 Git 제외 경로에 보관한다.
 data/
 raw/
 interim/
@@ -30,3 +30,34 @@ config/*.local.*
 !config/paths.example.toml
 /reports/raw-data-audit.json
 /reports/model-readiness-diagnostics.json
+# 개인별 이력이 없는 EDA 소규모 집계표만 버전 관리한다.
+!/reports/eda/tables/dataset_summary.csv
+!/reports/eda/tables/deduplication_impact.csv
+!/reports/eda/tables/evaluation_pair_accounting.csv
+!/reports/eda/tables/evaluation_users.csv
+!/reports/eda/tables/normalization_impact.csv
+!/reports/eda/tables/period_activity.csv
+!/reports/eda/tables/popularity_bands.csv
+!/reports/eda/tables/target_count_bands.csv
+!/reports/eda/tables/target_summary.csv
+!/reports/eda/tables/user_history_histogram.csv
+!/reports/eda/tables/user_summary.csv
+# 다운로드본에 동봉할 정확한 배포 경로만 허용한다.
+datasets/*
+!/datasets/raw/
+/datasets/raw/*
+!/datasets/raw/listens_2026-08-17.csv.gz
+!/datasets/raw/listens_2026-08-24.csv.gz
+!/datasets/raw/listens_2026-08-31.csv.gz
+!/datasets/raw/listens_2026-09-07.csv.gz
+!/datasets/raw/listens_2026-09-14.csv.gz
+!/datasets/raw/listens_2026-09-21.csv.gz
+!/datasets/raw/listens_2026-09-28.csv.gz
+!/datasets/raw/listens_2026-10-05.csv.gz
+!/datasets/raw/selected_users.csv
+!/datasets/raw/README.txt
+!/datasets/raw/source_manifest.json
+!/datasets/raw/verified_8week_summary.json
+!/datasets/raw/COPYING
+!/datasets/raw/distribution_manifest.json
+!/datasets/listenbrainz-preprocessing.zip

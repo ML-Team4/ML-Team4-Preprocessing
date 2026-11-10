@@ -1,8 +1,8 @@
-"""2-2 입력 검증·공통 정제·UTC 분할. 최종 전달 패키지는 다음 단계에서 만든다.
+"""입력 검증·공통 정제·UTC 시간 분할을 수행하고 학습용 SQL 관계를 제공한다.
 
 대규모 사건은 DuckDB 파일 DB 안에서 처리한다. 공개 반환값은 파일명·해시와
 집계뿐이며 원본 경로, 사용자 ID, 개인별 기록은 보고서에 포함하지 않는다.
-정규화 구현과 고정 경계는 1단계 audit_raw_data에서 재사용한다.
+정규화 구현과 고정 경계는 audit_raw_data에서 재사용한다.
 """
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ import json
 import platform
 import re
 import resource
-import subprocess
 import sys
 import tempfile
 import time
@@ -24,6 +23,7 @@ from pathlib import Path
 import duckdb
 
 import audit_raw_data as base
+import raw_inputs
 
 EXPECTED_SCHEMA = [
     ("user_id", "BIGINT"), ("listened_at", "TIMESTAMP"),
@@ -35,56 +35,56 @@ SPLITS = (
     ("test", base.VALIDATION_END, base.WINDOW_END),
 )
 EXCLUSION_REASONS = ("missing_required", "outside_window", "empty_name", "duplicate_excess")
-REFERENCE = Path(__file__).resolve().parents[1] / "config/raw-input-reference.toml"
+REFERENCE = raw_inputs.PARQUET_REFERENCE
 
 
 def read_reference(path: Path = REFERENCE) -> dict:
-    """자동 생성 보고서와 분리한 1단계 입력 기준값을 읽는다."""
+    """자동 생성 보고서와 분리한 고정 입력 기준값을 읽는다."""
     with path.open("rb") as stream:
         files = tomllib.load(stream).get("files")
-    if not isinstance(files, dict) or set(files) != set(base.REQUIRED_FILES):
-        raise ValueError("Input reference must describe exactly the six required files")
+    if not isinstance(files, dict) or set(files) not in (set(base.REQUIRED_FILES), set(raw_inputs.CSV_FILES)):
+        raise ValueError("입력 기준에는 Parquet 원본 또는 주별 CSV 배포본의 필수 파일 정보가 있어야 합니다")
     for name, record in files.items():
         if not isinstance(record, dict) or set(record) != {"bytes", "sha256"}:
-            raise ValueError(f"Invalid input reference record: {name}")
+            raise ValueError(f"입력 기준 항목이 올바르지 않습니다: {name}")
         size, digest = record["bytes"], record["sha256"]
         if type(size) is not int or size < 0 or not isinstance(digest, str) or not re.fullmatch(
                 r"[0-9a-f]{64}", digest):
-            raise ValueError(f"Invalid bytes/SHA256 in input reference: {name}")
+            raise ValueError(f"입력 기준의 bytes 또는 SHA256이 올바르지 않습니다: {name}")
     return files
 
 
 def fingerprint_inputs(raw_dir: Path) -> list[dict]:
     result = []
-    for name in base.REQUIRED_FILES:
+    for name in raw_inputs.required_files(raw_dir):
         path = raw_dir / name
         if not path.is_file():
-            raise ValueError(f"Missing required input: {name}")
+            raise ValueError(f"필수 입력 파일이 없습니다: {name}")
         result.append({"file": name, "bytes": path.stat().st_size, "sha256": base.sha256(path)})
     return result
 
 
 def verify_input_files(raw_dir: Path, reference: dict) -> list[dict]:
-    if set(reference) != set(base.REQUIRED_FILES):
-        raise ValueError("Exactly six input reference records are required")
+    if set(reference) != set(raw_inputs.required_files(raw_dir)):
+        raise ValueError("입력 기준과 원본 배포 형식의 파일 목록이 다릅니다")
     actual = fingerprint_inputs(raw_dir)
     for entry in actual:
         measured = {k: entry[k] for k in ("bytes", "sha256")}
         if measured != reference[entry["file"]]:
-            raise ValueError(f"Input bytes/SHA256 differ from phase 1: {entry['file']}")
+            raise ValueError(f"입력 bytes/SHA256이 고정 기준과 다릅니다: {entry['file']}")
     return actual
 
 
 def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dict:
     """5,000명을 재선정하지 않고 정확한 스키마와 기존 CSV의 사용자 집합을 검증한다."""
-    con.read_parquet(str(raw_dir / base.REQUIRED_FILES[0])).create_view("raw_input")
+    raw_inputs.bind_raw(con, raw_dir)
     schema = [(r[0], r[1]) for r in con.execute("DESCRIBE raw_input").fetchall()]
     if schema != EXPECTED_SCHEMA:
-        raise ValueError("Parquet schema differs from the exact phase-1 column order/types")
+        raise ValueError("원본 schema의 컬럼 순서 또는 자료형이 기준과 다릅니다")
     with (raw_dir / "selected_users.csv").open(encoding="utf-8", newline="") as stream:
         header = next(csv.reader(stream), [])
     if header != ["user_id", "train_unique_tracks", "user_index"]:
-        raise ValueError("Unexpected selected_users.csv header")
+        raise ValueError("selected_users.csv의 header가 기준과 다릅니다")
     con.execute("""CREATE TABLE selected_cohort AS SELECT * FROM read_csv(?, header=true,
         columns={'user_id':'BIGINT','train_unique_tracks':'BIGINT','user_index':'BIGINT'})""",
         [str(raw_dir / "selected_users.csv")])
@@ -95,7 +95,7 @@ def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dic
     if (cohort["rows"], cohort["users"], cohort["indices"], cohort["min_index"],
             cohort["max_index"], cohort["missing_fields"]) != (
             expected_users, expected_users, expected_users, 1, expected_users, 0):
-        raise ValueError("Selected cohort must be a non-null one-to-one mapping of the expected size")
+        raise ValueError("선정 cohort는 지정된 크기의 NULL 없는 일대일 매핑이어야 합니다")
     membership = base.one(con, """SELECT
         (SELECT count(*) FROM (SELECT DISTINCT user_id FROM raw_input WHERE user_id IS NOT NULL) r
             ANTI JOIN selected_cohort c USING(user_id)) AS raw_users_not_in_cohort,
@@ -103,7 +103,7 @@ def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dic
             (SELECT DISTINCT user_id FROM raw_input WHERE user_id IS NOT NULL) r USING(user_id))
             AS cohort_users_without_raw_rows""")
     if any(membership.values()):
-        raise ValueError("Parquet and selected cohort user sets differ (IDs withheld)")
+        raise ValueError("원본과 선정 cohort의 사용자 집합이 다릅니다")
     return {"schema": [{"column": n, "type": t} for n, t in schema],
             "cohort": {**cohort, **membership},
             "raw_rows": con.execute("SELECT count(*) FROM raw_input").fetchone()[0]}
@@ -150,7 +150,7 @@ def build_clean_events(con) -> dict:
     exclusions["duplicate_excess"] = dedup["duplicate_excess"]
     if (counts["valid_rows"] != dedup["events"] + dedup["duplicate_excess"]
             or counts["raw_rows"] != sum(exclusions.values()) + dedup["events"]):
-        raise RuntimeError("Raw/exclusion/unique event accounting does not reconcile")
+        raise RuntimeError("원본 행·제외 행·고유 사건 집계가 일치하지 않습니다")
     con.execute("ALTER TABLE clean_events DROP COLUMN source_rows")
 
     partitions = []
@@ -161,12 +161,12 @@ def build_clean_events(con) -> dict:
             count(*) FILTER (WHERE listened_at IS NULL OR listened_at < ?::TIMESTAMP
                 OR listened_at >= ?::TIMESTAMP) AS outside_split FROM {split}_events""", [start, end])
         if stats.pop("outside_split"):
-            raise RuntimeError(f"Clean events outside the UTC interval for {split}")
+            raise RuntimeError(f"{split}의 UTC 구간 밖에 정제 사건이 있습니다")
         partitions.append({"split": split, "start_inclusive_utc": start,
                            "end_exclusive_utc": end, **stats})
     kept = sum(p["events"] for p in partitions)
     if kept != dedup["events"]:
-        raise RuntimeError("UTC split counts do not cover all clean events")
+        raise RuntimeError("UTC split 집계가 모든 정제 사건을 포함하지 않습니다")
     # train만 읽는다. 1~9곡 사용자도 남기고 미래에만 활동한 사용자에게 학습 행을 만들지 않는다.
     con.execute("""CREATE TABLE train_pairs AS SELECT user_id, artist_key, recording_key,
         count(*)::BIGINT AS listen_count FROM train_events GROUP BY ALL""")
@@ -255,10 +255,10 @@ def read_settings(config_path: Path) -> dict:
                 for k in ("raw_dir", "cache_dir")}
     settings.update(memory_limit=cfg.get("memory_limit", "3GB"), threads=cfg.get("threads", 2))
     if type(settings["threads"]) is not int or not 1 <= settings["threads"] <= 4:
-        raise ValueError("threads must be an integer from 1 through 4")
+        raise ValueError("threads는 1부터 4 사이의 정수여야 합니다")
     raw, cache = settings["raw_dir"], settings["cache_dir"]
     if cache == raw or raw in cache.parents:
-        raise ValueError("Cache must not be inside raw_dir")
+        raise ValueError("cache 폴더는 raw_dir 밖에 지정해야 합니다")
     return settings
 
 
@@ -281,56 +281,51 @@ def working_connection(settings: dict):
 
 
 def render_report(result: dict) -> str:
-    lines = ["# 2-2 입력 검증·정제·UTC 분할 실행 기록", "",
-             "최종 전달 패키지 생성 전의 전체 입력 검증·임시 정제 실행이다. "
-             "원본 사용자 ID·개인별 기록·개인 경로는 포함하지 않는다.", "",
-             "## 입력 파일 대조", "", "| 파일 | bytes | SHA256 |", "| --- | --- | --- |"]
-    for entry in result["input_files"]:
-        lines.append(f"| {entry['file']} | {entry['bytes']} | `{entry['sha256']}` |")
+    lines = ["# 입력 검증·정제·UTC 분할 실행 기록", "",
+             "전체 원본의 입력 검증·정제·시간 분할 집계다. "
+             "원본 사용자 ID·개인별 기록·개인 경로는 포함하지 않는다."]
     for heading, key in [("입력 스키마·선정 사용자", "input_validation"),
                          ("정제 제외와 분할 집계", "cleaning"),
-                         ("학습 기간 품질 진단", "quality"), ("실행 추적", "execution")]:
+                         ("학습 기간 품질 진단", "quality")]:
         if key in result:
             lines += ["", "## " + heading, "", "```json",
                       json.dumps(result[key], ensure_ascii=False, indent=2), "```"]
-    lines += ["", "6개 입력의 실행 전후 바이트 수·SHA256 일치를 확인했다. "
+    lines += ["", "입력 파일의 실행 전후 무결성을 확인했다. "
               "품질 플래그는 삭제 조건이 아니며 각 범주는 겹칠 수 있다. "
               "진단의 개인별 플래그는 임시 DB 안에만 있고 종료 시 삭제한다.", "",
               "중복 대표 원문은 원문 쌍의 UTF-8 바이트 순으로 선택한다. "
               "표시 이름은 정제된 train 사건의 원문 쌍 빈도, 같은 바이트 동률 순서로 결정한다. "
-              "매핑·CSR·평가 파일·manifest와 패키지 재로딩 검증은 다음 단계에 남아 있다.", ""]
+              "이 보고서의 검증 범위는 입력 파일과 정제·시간 분할 집계다.", ""]
     return "\n".join(lines)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--inputs-only", action="store_true", help="6입력·스키마·사용자 집합 검증만 실행")
+    parser.add_argument("--config", type=Path, default=raw_inputs.DEFAULT_CONFIG)
+    parser.add_argument("--inputs-only", action="store_true", help="입력 파일·스키마·사용자 집합 검증만 실행")
     parser.add_argument("--report", type=Path, help="새 Markdown 집계 보고서. 기존 파일은 덮어쓰지 않음")
     args = parser.parse_args()
     settings = read_settings(args.config)
     if args.report:
         report_path = args.report.resolve()
         if report_path == settings["raw_dir"] or settings["raw_dir"] in report_path.parents:
-            raise ValueError("Report must not be inside raw_dir")
+            raise ValueError("보고서는 raw_dir 밖에 저장해야 합니다")
         if report_path.suffix != ".md" or report_path.exists():
-            raise ValueError("Report must be a new .md file; existing reports are preserved")
+            raise ValueError("보고서는 아직 존재하지 않는 .md 파일이어야 합니다")
     started = time.monotonic()
-    before = verify_input_files(settings["raw_dir"], read_reference())
+    before = verify_input_files(settings["raw_dir"], read_reference(
+        raw_inputs.resolve_reference(settings["raw_dir"], REFERENCE)))
     result = {"input_files": before}
     with working_connection(settings) as con:
         result["input_validation"] = validate_input_tables(con, settings["raw_dir"])
         if not args.inputs_only:
-            print("[preprocessing] input verified; cleaning and splitting", flush=True)
+            print("[preprocessing] 입력 검증 완료, 정제·시간 split 실행", flush=True)
             result["cleaning"] = build_clean_events(con)
-            print("[preprocessing] train-only quality diagnostics", flush=True)
+            print("[preprocessing] train 기준 품질 진단", flush=True)
             result["quality"] = quality_diagnostics(con)
     if fingerprint_inputs(settings["raw_dir"]) != before:
-        raise RuntimeError("Input changed during execution; no report written")
-    repo = Path(__file__).resolve().parents[1]
-    def git(*parts):
-        completed = subprocess.run(["git", *parts], cwd=repo, capture_output=True, text=True)
-        return completed.stdout.strip() if completed.returncode == 0 else None
+        raise RuntimeError("실행 중 입력이 변경돼 보고서 생성을 중단했습니다")
+    trace = base.git_trace(raw_inputs.ROOT)
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     result["execution"] = {
         "finished_utc": datetime.now(timezone.utc).isoformat(),
@@ -338,8 +333,8 @@ def main() -> None:
         "peak_rss_bytes": rss if sys.platform == "darwin" else rss * 1024,
         "python": platform.python_version(), "duckdb": duckdb.__version__,
         "memory_limit": settings["memory_limit"], "threads": settings["threads"],
-        "branch": git("branch", "--show-current"), "head_at_execution": git("rev-parse", "HEAD"),
-        "uncommitted_at_execution": bool(git("status", "--porcelain=v1")),
+        "branch": trace["branch"], "head_at_execution": trace["head"],
+        "uncommitted_at_execution": None if trace["status"] is None else bool(trace["status"]),
         "script_sha256": base.sha256(Path(__file__)),
         "normalizer_script_sha256": base.sha256(Path(base.__file__)),
         "config_sha256": base.sha256(args.config), "inputs_unchanged": True,

@@ -1,42 +1,12 @@
 # 원본 데이터 점검 결과
 
-이 문서는 `scripts/audit_raw_data.py`의 실제 실행 결과다. 정규화·중복 제거 결과는 임시 진단 집계이며 최종 전처리 전달본은 아직 생성하지 않았다. 모든 날짜는 UTC다.
+이 문서는 `scripts/audit_raw_data.py`의 실제 실행 결과다. 원본 통계와 고정 규칙을 적용한 진단 집계이며, 배포 CSV의 생성·검증 결과는 [CSV 검증 보고서](csv-dataset-validation.md)에 있다. 모든 날짜는 UTC다.
 
 ## 검증 범위와 근거
 
 Parquet 전체를 읽어 스키마·통계·해시를 검사했다. 함께 제공된 여섯 파일의 해시를 실행 전후 대조했다. 이름 정규화는 NFC와 고정된 유니코드 공백 29종의 축약이다. 결측·빈 이름·범위 밖 행을 진단 집계에서 분리하고 동일 사용자·시각·정규화 튜플은 한 건으로 집계했다. 원본은 수정하지 않았다.
 
 부속 README·source_manifest·기존 검증 JSON의 추출 방법 및 공식 덤프 규모는 **기존 설명에 기록된 사실**이다. 원본 TAR, 20,284명 전체 후보군, 표본의 상위 5,000명 선정 순위는 다시 검증하지 않았다. 로컬 CSV와 현재 학습 이력의 일치 여부만 직접 검증했다. TIMESTAMP에는 시간대가 내장되어 있지 않아 UTC 해석은 부속 자료의 명세를 따른다.
-
-## 실행 환경
-
-| 항목 | 값 |
-| --- | --- |
-| "started_note" | "finished_utc is report generation time" |
-| "finished_utc" | "2026-11-07T07:53:33.304587+00:00" |
-| "python" | "3.13.7" |
-| "duckdb" | "1.4.4" |
-| "platform" | "Darwin arm64" |
-| "memory_limit" | "3GB" |
-| "threads" | 2 |
-| "sample_size" | 5 |
-| "elapsed_seconds" | 36.43 |
-| "peak_rss_bytes" | 2622668800 |
-| "normalization" | "NFC + fixed 29 whitespace codepoints -&gt; ASCII space + strip" |
-| "python_unicode_version" | "15.1.0" |
-| "whitespace_codepoints" | ["U+0009", "U+000A", "U+000B", "U+000C", "U+000D", "U+001C", "U+001D", "U+001E", "U+001F", "U+0020", "U+0085", "U+00A0", "U+1680", "U+2000", "U+2001", "U+2002", "U+2003", "U+2004", "U+2005", "U+2006", "U+2007", "U+2008", "U+2009", "U+200A", "U+2028", "U+2029", "U+202F", "U+205F", "U+3000"] |
-| "final_preprocessing_files_created" | False |
-
-## 입력 파일 해시와 불변성
-
-| file | bytes | sha256 | unchanged |
-| --- | --- | --- | --- |
-| "listens_8weeks_5000users.parquet" | 144828609 | "4beecfca926a472081b70bcc50c2a20193756a90f9e8dc84336076e86b72e3c3" | True |
-| "README.txt" | 5183 | "fd8104ccfd16875bac897640464d7927ffce8c2057016a53cd6b9bf5625d5e7e" | True |
-| "selected_users.csv" | 76347 | "6ca4013d636ac7c16aa52ce6fa1e9fa670df1a4aca8eda64ad9f30f45cbe94a5" | True |
-| "source_manifest.json" | 306507 | "7e0af4eb5328ab661e66efc7bf9378d74cb8c8e1a377d3792ac93889765ec526" | True |
-| "verified_8week_summary.json" | 7606 | "ac897b3ee55bfd6aa2145dfd16c3eb7705604f6cbaa73646cafdc33d980a445f" | True |
-| "COPYING" | 6390 | "75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea" | True |
 
 ## 컬럼과 실제 자료형
 
@@ -238,7 +208,7 @@ Parquet 전체를 읽어 스키마·통계·해시를 검사했다. 함께 제�
 
 ## 제한된 표본 점검
 
-각 범주에서 최대 설정 sample_size개를 빈도 내림차순과 명시적 동률 순서로 선정했다. 무작위 대표 표본이 아니다. audit_user_index는 기존 CSV의 1부터 시작하는 표시 ID이며 2단계 user_idx와 다르다. 제목 문자열은 JSON 이스케이프로 공백·제어문자를 표시한다.
+각 범주에서 최대 설정 sample_size개를 빈도 내림차순과 명시적 동률 순서로 선정했다. 무작위 대표 표본이 아니다. audit_user_index는 기존 CSV의 1부터 시작하는 표시 ID이며 공통 user_idx와 다르다. 제목 문자열은 JSON 이스케이프로 공백·제어문자를 표시한다.
 
 ### names
 
@@ -328,7 +298,7 @@ Parquet 전체를 읽어 스키마·통계·해시를 검사했다. 함께 제�
 
 과도한 청취량과 podcast·audiobook 등의 문자열은 검토 신호일 뿐이다. 네 컬럼만으로 재생 길이, 실제 사람의 청취, 음악 여부를 판정할 수 없으므로 해당 신호로 자동 삭제하지 않는다. 동명 곡의 오병합과 표기 차이의 과분리는 남는다.
 
-여기서 재산출된 수치가 과거 검증 수치와 같더라도 최종 전달본 통계는 아니다. 최종 해시·ID·희소행렬·제외 사유별 산출물 검증은 2단계에서 수행한다. source_manifest의 공식 TAR 전체 해시를 검증한 것이 아니다.
+여기서 재산출된 수치가 과거 검증 수치와 같더라도 최종 전달본 통계는 아니다. 최종 해시·ID·sparse matrix·제외 사유별 산출물 검증은 패키지 생성 시 수행한다. source_manifest의 공식 TAR 전체 해시를 검증한 것이 아니다.
 
 ## 진단 일별 규모
 
@@ -391,13 +361,4 @@ Parquet 전체를 읽어 스키마·통계·해시를 검사했다. 함께 제�
 | "2026-10-10" | 147775 | 2808 |
 | "2026-10-11" | 130962 | 2637 |
 
-## 코드 추적
-
-| 항목 | 값 |
-| --- | --- |
-| "head" | null |
-| "branch" | "work/data-audit" |
-| "status" | "?? .gitignore\n?? config/\n?? reports/\n?? requirements.txt\n?? scripts/\n?? tests/" |
-| "audit_script_sha256" | "929c5f0ed6ad9474ec21eaea0f03cc002be53fde11665480daf1087f8b0dfa40" |
-
-규칙과 전달 규격은 `docs/preprocessing-plan.md`, `docs/data-contract.md`를 따른다. 원본 사용자 식별자는 보고서에 싣지 않았다.
+규칙과 전달 규격은 `docs/preprocessing-rules.md`, `docs/data-contract.md`를 따른다. 원본 사용자 식별자는 보고서에 싣지 않았다.

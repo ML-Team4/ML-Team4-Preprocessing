@@ -1,17 +1,6 @@
-# 2-2 입력 검증·정제·UTC 분할 실행 기록
+# 입력 검증·정제·UTC 분할 실행 기록
 
-최종 전달 패키지 생성 전의 전체 입력 검증·임시 정제 실행이다. 원본 사용자 ID·개인별 기록·개인 경로는 포함하지 않는다.
-
-## 입력 파일 대조
-
-| 파일 | bytes | SHA256 |
-| --- | --- | --- |
-| listens_8weeks_5000users.parquet | 144828609 | `4beecfca926a472081b70bcc50c2a20193756a90f9e8dc84336076e86b72e3c3` |
-| README.txt | 5183 | `fd8104ccfd16875bac897640464d7927ffce8c2057016a53cd6b9bf5625d5e7e` |
-| selected_users.csv | 76347 | `6ca4013d636ac7c16aa52ce6fa1e9fa670df1a4aca8eda64ad9f30f45cbe94a5` |
-| source_manifest.json | 306507 | `7e0af4eb5328ab661e66efc7bf9378d74cb8c8e1a377d3792ac93889765ec526` |
-| verified_8week_summary.json | 7606 | `ac897b3ee55bfd6aa2145dfd16c3eb7705604f6cbaa73646cafdc33d980a445f` |
-| COPYING | 6390 | `75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea` |
+전체 원본의 입력 검증·정제·시간 분할 집계다. 원본 사용자 ID·개인별 기록·개인 경로는 포함하지 않는다.
 
 ## 입력 스키마·선정 사용자
 
@@ -139,28 +128,6 @@
 }
 ```
 
-## 실행 추적
-
-```json
-{
-  "finished_utc": "2026-11-08T08:47:36.938334+00:00",
-  "elapsed_seconds": 19.71,
-  "peak_rss_bytes": 3041918976,
-  "python": "3.13.7",
-  "duckdb": "1.4.4",
-  "memory_limit": "3GB",
-  "threads": 2,
-  "branch": "work/preprocessing",
-  "head_at_execution": "c28cdd191e5b928e4345ff09635e6d3c37e35a80",
-  "uncommitted_at_execution": true,
-  "script_sha256": "e04bc6c8d69a548d3f30327e625978072acfbd700606b113121ce3a7b916c9cd",
-  "normalizer_script_sha256": "929c5f0ed6ad9474ec21eaea0f03cc002be53fde11665480daf1087f8b0dfa40",
-  "config_sha256": "b332624f80c1be79824d0b8ee9f1d9561f5336f9f7fd311ec1a5e7fec76ab3c5",
-  "inputs_unchanged": true,
-  "final_datasets_created": false
-}
-```
-
 6개 입력의 실행 전후 바이트 수·SHA256 일치를 확인했다. 품질 플래그는 삭제 조건이 아니며 각 범주는 겹칠 수 있다. 진단의 개인별 플래그는 임시 DB 안에만 있고 종료 시 삭제한다.
 
-중복 대표 원문은 원문 쌍의 UTF-8 바이트 순으로 선택한다. 표시 이름은 정제된 train 사건의 원문 쌍 빈도, 같은 바이트 동률 순서로 결정한다. 매핑·CSR·평가 파일·manifest와 패키지 재로딩 검증은 다음 단계에 남아 있다.
+중복 대표 원문은 원문 쌍의 UTF-8 바이트 순으로 선택한다. 표시 이름은 정제된 train 사건의 원문 쌍 빈도, 같은 바이트 동률 순서로 결정한다. 이 보고서의 검증 범위는 입력 파일과 정제·시간 분할 집계다.

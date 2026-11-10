@@ -1,4 +1,4 @@
-# 1단계 커밋 c28cdd1의 reports/raw-data-audit.md에서 확정한 원본 입력 기준.
+# 원본 점검 커밋 c28cdd1의 reports/raw-data-audit.md에서 확정한 입력 기준.
 # 점검 보고서를 다시 생성해도 이 파일은 갱신하지 않는다.
 
 [files."listens_8weeks_5000users.parquet"]

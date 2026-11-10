@@ -1,0 +1,9 @@
+﻿dataset_version,period,kind,events,unique_items,user_item_pairs,users,period_events,period_pairs,event_share_pct,pair_share_pct
+listenbrainz-preprocessing,validation,new_item,228684,168926,174308,3792,1104514,596553,20.70449084393679,29.21919762368138
+listenbrainz-preprocessing,validation,train_seen,617108,164659,228922,3813,1104514,596553,55.87145115408225,38.37412602065533
+listenbrainz-preprocessing,validation,known_item_no_train_user,0,0,0,0,1104514,596553,0.0,0.0
+listenbrainz-preprocessing,validation,candidate,258722,123397,193323,3922,1104514,596553,23.424058001980963,32.406676355663286
+listenbrainz-preprocessing,test,new_item,255471,180246,187636,3764,1084955,594266,23.546690876580136,31.57441280504017
+listenbrainz-preprocessing,test,train_seen,550599,148304,205427,3639,1084955,594266,50.74855639173975,34.56819000245681
+listenbrainz-preprocessing,test,known_item_no_train_user,0,0,0,0,1084955,594266,0.0,0.0
+listenbrainz-preprocessing,test,candidate,278885,127021,201203,3852,1084955,594266,25.704752731680117,33.85739719250302

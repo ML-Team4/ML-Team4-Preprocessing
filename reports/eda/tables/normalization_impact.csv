@@ -1,0 +1,4 @@
+﻿dataset_version,metric,original_key,normalized_key,delta
+listenbrainz-preprocessing,고유 곡,1525171,1525005,-166
+listenbrainz-preprocessing,고유 사용자·곡 쌍,2739330,2739292,-38
+listenbrainz-preprocessing,고유 청취자가 한 명인 곡,1204554,1204318,-236

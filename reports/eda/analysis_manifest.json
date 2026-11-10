@@ -1,0 +1,367 @@
+{
+  "dataset_version": "listenbrainz-preprocessing",
+  "contract_version": "2.0.0",
+  "rules_version": "1.0.0",
+  "scope": "원본 대조 성공 패키지 고정 기준·CSV 전체 수치 열·기존 검증 표 대조; 원본 사건은 재처리하지 않음",
+  "train": {
+    "users": 5000,
+    "items": 1525005,
+    "user_item_pairs": 2739292,
+    "events": 6623584,
+    "matrix_density": 0.0003592502319664526,
+    "listener_count_mismatches": 0,
+    "repeat_events_after_first_pair": 3884292
+  },
+  "evaluation": {
+    "validation": {
+      "eligible_users": 3922,
+      "target_pairs": 193323,
+      "cohort_users": 5000,
+      "eligible_pct": 78.44,
+      "period_unique_pairs": 596553,
+      "clean_events": 1104514,
+      "candidate_repeat_events_collapsed": 65399
+    },
+    "test": {
+      "eligible_users": 3852,
+      "target_pairs": 201203,
+      "cohort_users": 5000,
+      "eligible_pct": 77.04,
+      "period_unique_pairs": 594266,
+      "clean_events": 1084955,
+      "candidate_repeat_events_collapsed": 77682
+    }
+  },
+  "checks": {
+    "input_fingerprints": {
+      "COPYING": {
+        "bytes": 6390,
+        "sha256": "75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea"
+      },
+      "README.md": {
+        "bytes": 1974,
+        "sha256": "77f39c8545889cb4de1eb5e4af06021f7911f4be0da130657d980d10f0b39e97"
+      },
+      "dataset_manifest.json": {
+        "bytes": 13867,
+        "sha256": "57875974e4ac950622995151a6e63ca143daaeb2a8d4ebad0371947048ada01c"
+      },
+      "items.csv": {
+        "bytes": 135899640,
+        "sha256": "0e05fc0ae0887fe0b8879917efb7966e834b118dce472d23f0db352abd19dbbf"
+      },
+      "test_targets.csv": {
+        "bytes": 2412188,
+        "sha256": "f3c2f924b79e3eab0f38a629ded1695e215e4409bb8269abff1d53313be41c8c"
+      },
+      "test_users.csv": {
+        "bytes": 18363,
+        "sha256": "68f50fd2bd90a5aaea36e8636b5b2b7c1c0742ef38c856334721f00391a6d1fc"
+      },
+      "train_interactions.csv": {
+        "bytes": 38337874,
+        "sha256": "1345f9a81a8ad830973fb40c98701ee33a9e4332c8936fe0001791e715c55f3b"
+      },
+      "users.csv": {
+        "bytes": 56635,
+        "sha256": "1db1e616c57a23a625e2597ce49dc4a9e65020fecffd3ee5865b476a53d6dd5f"
+      },
+      "validation_targets.csv": {
+        "bytes": 2315816,
+        "sha256": "558ee9d9a7e58a22c258e19c82acb447444473cd2b0daf00e100c500ee5ff114"
+      },
+      "validation_users.csv": {
+        "bytes": 18714,
+        "sha256": "9fd83aa168b3447335abdf91a8ce8c647a18396652fb447c6db9b37ff07b5d72"
+      }
+    },
+    "csv_checks": {
+      "users.csv": {
+        "rows": 5000,
+        "integrity_schema_order": true
+      },
+      "items.csv": {
+        "rows": 1525005,
+        "integrity_schema_order": true
+      },
+      "train_interactions.csv": {
+        "rows": 2739292,
+        "integrity_schema_order": true
+      },
+      "validation_targets.csv": {
+        "rows": 193323,
+        "integrity_schema_order": true
+      },
+      "test_targets.csv": {
+        "rows": 201203,
+        "integrity_schema_order": true
+      },
+      "validation_users.csv": {
+        "rows": 3922,
+        "integrity_schema_order": true
+      },
+      "test_users.csv": {
+        "rows": 3852,
+        "integrity_schema_order": true
+      }
+    },
+    "fixed_package_reference_match": true,
+    "package_unchanged": true,
+    "source_reports_match": true,
+    "table_roundtrip": true,
+    "figure_values_from_saved_tables": true
+  },
+  "source_fingerprints": {
+    "reports/csv-dataset-validation.md": {
+      "bytes": 5139,
+      "sha256": "494af9d1b41fd763373b6f9f4d76ef620845826dfabee4e7e07c7f5e5c6d52be"
+    },
+    "reports/temporal-split-review.md": {
+      "bytes": 14659,
+      "sha256": "7a36a024a9cb603cfb8e65ab074324b913298b8d681e22bef67ac7f9cdf3a265"
+    },
+    "reports/model-readiness-review.md": {
+      "bytes": 19948,
+      "sha256": "77d56713f381400f752d6dace0a93ac0b91bafd47b84a5ec7c2e449e4da5c29e"
+    },
+    "config/listening-package-reference.json": {
+      "bytes": 1712,
+      "sha256": "47707e39266476281897cc1c794d1b027f77d67177fc6fabb849140078d795e7"
+    },
+    "scripts/analyze_listening.py": {
+      "bytes": 30880,
+      "sha256": "4c55396e92754a560a701eeb3976077baaf4162f5cb1f9e309ea7a4faa3a313e"
+    },
+    "scripts/verify_listening_analysis.py": {
+      "bytes": 22628,
+      "sha256": "088a47b49bed9b98ace70c6ac6aba774969a310d590f202e294741e10c2476d4"
+    },
+    "requirements.txt": {
+      "bytes": 262,
+      "sha256": "a03a2ee68232c9a693ee5b91b517adec736489c484c01c93bdf9a65d19257dbb"
+    }
+  },
+  "figure_specifications": {
+    "popularity-shares.png": {
+      "table": "popularity_bands.csv",
+      "version": "listenbrainz-preprocessing",
+      "track_share_pct": [
+        78.97141320848128,
+        10.41760518817971,
+        10.610981603339006
+      ],
+      "event_share_pct": [
+        32.999173861160365,
+        9.237883900921315,
+        57.762942237918324
+      ],
+      "track_denominator": 1525005,
+      "event_denominator": 6623584,
+      "y_unit": "percent"
+    },
+    "user-training-tracks.png": {
+      "table": "user_history_histogram.csv",
+      "version": "listenbrainz-preprocessing",
+      "users": [
+        0,
+        568,
+        498,
+        1027,
+        1130,
+        1020,
+        640,
+        104,
+        10,
+        3
+      ],
+      "bins": [
+        "0–9",
+        "10–49",
+        "50–99",
+        "100–249",
+        "250–499",
+        "500–999",
+        "1,000–2,499",
+        "2,500–4,999",
+        "5,000–9,999",
+        "10,000–11,876"
+      ],
+      "user_denominator": 5000,
+      "y_unit": "users"
+    }
+  },
+  "output_files": {
+    "figures/popularity-shares.png": {
+      "bytes": 105727,
+      "sha256": "6f1a77c3ff891e12996f848e309871d84b75c291f7d3d9690a9af5c7a662a5cd"
+    },
+    "figures/user-training-tracks.png": {
+      "bytes": 112249,
+      "sha256": "553467aae20e044e97fcc39befe2269c7036659f48777b6d33082a91c45652b0"
+    },
+    "tables/dataset_summary.csv": {
+      "bytes": 214,
+      "sha256": "c8869826a56cc19603271ce6ad8772ca791d137030d39bc80e1a0a3e815e7e70"
+    },
+    "tables/deduplication_impact.csv": {
+      "bytes": 327,
+      "sha256": "e7b83c44ab21553428e953c51fa3e76205589af9a993f15698db79ff48ad0cba"
+    },
+    "tables/evaluation_pair_accounting.csv": {
+      "bytes": 1049,
+      "sha256": "88bb168123b36a6cf1365eccc4150bf4c85fd10fec8e1babfb5ae1edd1cdd21d"
+    },
+    "tables/evaluation_users.csv": {
+      "bytes": 702,
+      "sha256": "785eff2636133750796a0882cb7c02bf8efb3caa27a035f5606bb5916d554e4d"
+    },
+    "tables/normalization_impact.csv": {
+      "bytes": 275,
+      "sha256": "65a916fc5cf435447278288b6ca9f1d77ed94fc0eb15581edaccdbb738a5b8a5"
+    },
+    "tables/period_activity.csv": {
+      "bytes": 554,
+      "sha256": "592f24af6ba4f6f0f873128f3f43de3af908a321b546c6920e5e0c4a042e7519"
+    },
+    "tables/popularity_bands.csv": {
+      "bytes": 446,
+      "sha256": "fc8551e37e3f3ba18b9d02a8d1bad83e47bd17a153b5e429d9501f29adf097e0"
+    },
+    "tables/target_count_bands.csv": {
+      "bytes": 751,
+      "sha256": "ab68f67d9eaa75e96188da561583058cc7d884d8d282268b54bbca8f95955633"
+    },
+    "tables/target_summary.csv": {
+      "bytes": 341,
+      "sha256": "d01122b4c5120d3ebebb3d3659ffe10d1b011b6bb3be5efbe7a3663220e93602"
+    },
+    "tables/user_history_histogram.csv": {
+      "bytes": 649,
+      "sha256": "33d2c508cb674788eda314f9760816a2cf1d652fd861661470f87d67c5adc618"
+    },
+    "tables/user_summary.csv": {
+      "bytes": 382,
+      "sha256": "9e82eea9f15abe8777b4f9eba9f659adc1db031b84c136b6de3284e58eabbba5"
+    }
+  },
+  "table_schemas": {
+    "popularity_bands": {
+      "dataset_version": "string",
+      "listener_band": "string",
+      "tracks": "int64",
+      "user_item_pairs": "int64",
+      "events": "int64",
+      "track_denominator": "int64",
+      "event_denominator": "int64",
+      "track_share_pct": "float64",
+      "event_share_pct": "float64"
+    },
+    "dataset_summary": {
+      "dataset_version": "string",
+      "users": "int64",
+      "items": "int64",
+      "user_item_pairs": "int64",
+      "events": "int64",
+      "matrix_density": "float64",
+      "listener_count_mismatches": "int64",
+      "repeat_events_after_first_pair": "int64"
+    },
+    "user_summary": {
+      "dataset_version": "string",
+      "population": "string",
+      "metric": "string",
+      "users": "int64",
+      "mean": "float64",
+      "min": "float64",
+      "p25": "float64",
+      "median": "float64",
+      "p75": "float64",
+      "p90": "float64",
+      "p95": "float64",
+      "p99": "float64",
+      "max": "float64"
+    },
+    "user_history_histogram": {
+      "dataset_version": "string",
+      "population": "string",
+      "lower_inclusive": "int64",
+      "upper_exclusive": "int64",
+      "users": "int64",
+      "user_denominator": "int64",
+      "share_pct": "float64"
+    },
+    "target_summary": {
+      "dataset_version": "string",
+      "population": "string",
+      "metric": "string",
+      "users": "int64",
+      "mean": "float64",
+      "min": "float64",
+      "p25": "float64",
+      "median": "float64",
+      "p75": "float64",
+      "p90": "float64",
+      "p95": "float64",
+      "p99": "float64",
+      "max": "float64"
+    },
+    "target_count_bands": {
+      "dataset_version": "string",
+      "period": "string",
+      "target_count_band": "string",
+      "users": "int64",
+      "eligible_denominator": "int64",
+      "share_pct": "float64"
+    },
+    "evaluation_pair_accounting": {
+      "dataset_version": "string",
+      "period": "string",
+      "kind": "string",
+      "events": "int64",
+      "unique_items": "int64",
+      "user_item_pairs": "int64",
+      "users": "int64",
+      "period_events": "int64",
+      "period_pairs": "int64",
+      "event_share_pct": "float64",
+      "pair_share_pct": "float64"
+    },
+    "evaluation_users": {
+      "dataset_version": "string",
+      "period": "string",
+      "status": "string",
+      "users": "int64",
+      "cohort_denominator": "int64",
+      "cohort_share_pct": "float64"
+    },
+    "normalization_impact": {
+      "dataset_version": "string",
+      "metric": "string",
+      "original_key": "int64",
+      "normalized_key": "int64",
+      "delta": "int64"
+    },
+    "deduplication_impact": {
+      "dataset_version": "string",
+      "listener_band": "string",
+      "tracks": "int64",
+      "valid_rows_before": "int64",
+      "events_after": "int64",
+      "removed_rows": "int64",
+      "removal_pct": "float64"
+    },
+    "period_activity": {
+      "dataset_version": "string",
+      "period": "string",
+      "start_inclusive_utc": "string",
+      "end_exclusive_utc": "string",
+      "observed_days": "int64",
+      "active_users": "int64",
+      "unique_items": "int64",
+      "valid_rows_before": "int64",
+      "events": "int64",
+      "events_per_day": "float64",
+      "active_user_share_pct": "float64"
+    }
+  }
+}

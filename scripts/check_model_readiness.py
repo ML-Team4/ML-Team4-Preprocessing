@@ -27,26 +27,26 @@ def build_overlap(con):
 
 
 def supported_targets(con, target_table):
-    """한 학습 곡과 목표 곡 사이에 양의 코사인 유사도가 가능한 정답 쌍.
+    """한 학습 곡과 목표 곡 사이에 양의 cosine similarity가 가능한 정답 쌍.
 
     target_table은 코드에서 정한 내부 테이블명만 받는다. positive log-count나 binary
     곡 벡터에서 공유 청취자가 존재하는 필요충분조건이며 Top-K 절삭 전 조건이다.
     """
     if target_table not in {"val_targets", "test_targets", "fixture_targets"}:
-        raise ValueError("Unexpected internal table name")
+        raise ValueError("허용되지 않은 내부 테이블 이름입니다")
     return base.rows(con, f"""SELECT DISTINCT t.u,t.i FROM {target_table} t
         JOIN dp p ON p.i=t.i JOIN user_overlap o ON o.u=t.u AND o.v=p.u""")
 
 
 def materialize_supported_targets(con, target_table, output_table):
     if (target_table,output_table) not in {("val_targets","val_supported"),("test_targets","test_supported")}:
-        raise ValueError("Unexpected internal table names")
+        raise ValueError("허용되지 않은 내부 테이블 이름입니다")
     con.execute(f"""CREATE TABLE {output_table} AS SELECT DISTINCT t.u,t.i FROM {target_table} t
         JOIN dp p ON p.i=t.i JOIN user_overlap o ON o.u=t.u AND o.v=p.u""")
 
 
 def components(con):
-    """항목별 최소 사용자와의 별 모양 간선을 스트리밍해 연결요소만 계산한다."""
+    """항목별 최소 사용자와의 별 모양 간선을 스트리밍해 connected component만 계산한다."""
     parent = {r[0]:r[0] for r in con.execute("SELECT DISTINCT u FROM dp").fetchall()}
     def find(x):
         while parent[x]!=x:
@@ -70,7 +70,7 @@ def components(con):
 
 
 def diagnose(con, baseline, sample_size=5):
-    print("[readiness] compact temporary IDs and training distributions",flush=True)
+    print("[readiness] 임시 ID와 train 분포 집계",flush=True)
     con.execute("""CREATE TABLE di AS SELECT row_number() OVER (ORDER BY artist_name,recording_name)-1 AS i,
         artist_name,recording_name,listeners FROM catalog""")
     con.execute("""CREATE TABLE dp AS SELECT c.user_index AS u,d.i,t.listens FROM train_pairs t
@@ -116,7 +116,7 @@ def diagnose(con, baseline, sample_size=5):
         (SELECT p.u,p.listens,count(*) AS n FROM dp p JOIN di d USING(i) WHERE listeners=1 GROUP BY p.u,p.listens)
         SELECT count(*) AS distinct_owner_count_patterns,count(*) FILTER (WHERE n>1) AS repeated_patterns,
         sum(n) FILTER (WHERE n>1) AS items_in_repeated_patterns,max(n) AS max_items_identical_column FROM g""")
-    print("[readiness] exact shared-listener graph and target support",flush=True)
+    print("[readiness] 공유 청취자 graph와 target 근거 집계",flush=True)
     graph_budget=base.one(con,"SELECT sum(listeners::HUGEINT*(listeners-1)) AS directed_pair_incidences FROM di")
     build_overlap(con)
     graph=base.one(con,"""SELECT count(*) AS directed_user_pairs,min(shared_items) AS min_shared,
@@ -187,13 +187,13 @@ def diagnose(con, baseline, sample_size=5):
         e["eligible_cohort_fraction"]=e["users"]/train["users"]
         e["baseline_exclusions"]=b
         if e["target_pairs"]!=b["target_pairs"] or e["users"]!=b["eligible_users"]:
-            raise ValueError("Extended target counts disagree with original audit")
+            raise ValueError("추가 집계의 target 수가 원본 점검과 다릅니다")
         evaluation[split]=e
     evaluation["cross_period"]=base.one(con,"""SELECT
         (SELECT count(*) FROM val_targets JOIN test_targets USING(u,i)) AS shared_target_pairs,
         (SELECT count(*) FROM (SELECT DISTINCT u FROM val_targets) v JOIN
         (SELECT DISTINCT u FROM test_targets) t USING(u)) AS shared_eligible_users""")
-    print("[readiness] activity, name ambiguity and temporal drift",flush=True)
+    print("[readiness] 활동량·이름 중복·기간별 변화 점검",flush=True)
     activity=base.one(con,"""WITH timestamps AS (SELECT user_id,listened_at,count(*) AS n FROM events
         WHERE listened_at < TIMESTAMP '2026-09-28' GROUP BY user_id,listened_at)
         SELECT count(*) AS user_timestamps,count(*) FILTER (WHERE n>1) AS multitrack_timestamps,
@@ -251,7 +251,7 @@ def diagnose(con, baseline, sample_size=5):
     weekly=base.rows(con,"""SELECT floor(date_diff('day',DATE '2026-08-17',cast(listened_at AS DATE))/7)::INTEGER+1 AS week,
         count(*) AS events,count(DISTINCT user_id) AS users,
         count(DISTINCT (artist_name,recording_name)) AS items FROM events GROUP BY week ORDER BY week""")
-    resource_estimates={"units":"bytes, float32=4 bytes, int32 index=4 bytes; no framework overhead",
+    resource_estimates={"units":"byte 단위, float32 값과 int32 index는 각각 4byte이며 framework 추가 메모리는 별도",
         "dense_user_item_float32_bytes":train["users"]*train["items"]*4,
         "dense_item_item_float32_bytes":train["items"]**2*4,
         "raw_csr_int64_data_int32_structure_bytes":train["pairs"]*12+(train["users"]+1)*4,
@@ -266,21 +266,23 @@ def diagnose(con, baseline, sample_size=5):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config",type=Path,required=True)
+    parser.add_argument("--config",type=Path,default=base.raw_inputs.DEFAULT_CONFIG)
     args=parser.parse_args()
     config_path=args.config.resolve()
     cfg=tomllib.loads(config_path.read_text())
     paths={k:(config_path.parent/Path(cfg[k]).expanduser()).resolve() for k in ["raw_dir","report_dir","cache_dir"]}
     for k in ["report_dir","cache_dir"]:
         if paths[k]==paths["raw_dir"] or paths["raw_dir"] in paths[k].parents:
-            raise ValueError("Outputs must not be inside raw_dir")
+            raise ValueError("출력 폴더는 raw_dir 밖에 지정해야 합니다")
     sample=cfg.get("sample_size",5)
     threads=cfg.get("threads",2)
     if not isinstance(sample,int) or not 1<=sample<=20 or not isinstance(threads,int) or not 1<=threads<=4:
-        raise ValueError("Invalid sample_size or threads")
-    before={n:base.sha256(paths["raw_dir"]/n) for n in base.REQUIRED_FILES}
-    if cfg.get("expected_sha256") and before[base.REQUIRED_FILES[0]]!=cfg["expected_sha256"]:
-        raise ValueError("Input hash mismatch")
+        raise ValueError("sample_size 또는 threads가 허용 범위를 벗어났습니다")
+    import preprocess_events as inputs
+    reference = inputs.read_reference(base.raw_inputs.resolve_reference(paths["raw_dir"], inputs.REFERENCE))
+    before = {entry["file"]: entry["sha256"] for entry in inputs.verify_input_files(paths["raw_dir"], reference)}
+    if cfg.get("expected_sha256") and base.REQUIRED_FILES[0] in before and before[base.REQUIRED_FILES[0]]!=cfg["expected_sha256"]:
+        raise ValueError("입력 hash가 기준과 다릅니다")
     started=time.monotonic()
     paths["cache_dir"].mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="readiness-",dir=paths["cache_dir"]) as work:
@@ -296,9 +298,9 @@ def main():
             result=diagnose(con,baseline,sample)
         finally:
             con.close()
-    after={n:base.sha256(paths["raw_dir"]/n) for n in base.REQUIRED_FILES}
+    after={n:base.sha256(paths["raw_dir"]/n) for n in base.raw_inputs.required_files(paths["raw_dir"])}
     if before!=after:
-        raise RuntimeError("Input changed during review")
+        raise RuntimeError("점검 중 입력이 변경됐습니다")
     rss=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     result["execution"]={"finished_utc":datetime.now(timezone.utc).isoformat(),"python":platform.python_version(),
         "duckdb":duckdb.__version__,"elapsed_seconds":round(time.monotonic()-started,2),

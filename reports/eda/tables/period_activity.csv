@@ -1,0 +1,4 @@
+﻿dataset_version,period,start_inclusive_utc,end_exclusive_utc,observed_days,active_users,unique_items,valid_rows_before,events,events_per_day,active_user_share_pct
+listenbrainz-preprocessing,train,2026-08-17 00:00:00,2026-09-28 00:00:00,42,5000,1525005,7018319,6623584,157704.38095238095,100.0
+listenbrainz-preprocessing,validation,2026-09-28 00:00:00,2026-10-05 00:00:00,7,4205,418374,1178452,1104514,157787.7142857143,84.1
+listenbrainz-preprocessing,test,2026-10-05 00:00:00,2026-10-12 00:00:00,7,4114,418776,1153857,1084955,154993.57142857142,82.28

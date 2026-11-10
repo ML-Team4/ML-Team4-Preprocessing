@@ -1,0 +1,66 @@
+{
+  "provenance": {
+    "validator": "scripts/validate_dataset.py",
+    "report": "reports/distribution-validation.md",
+    "origin_reference": "config/verified-package-origin.json",
+    "issue": "https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/15",
+    "description": "기존 원본 대조 성공 패키지의 CSV 7개를 그대로 배포한다. 배포 안내와 공개 재현에 필요한 항목을 반영한 manifest 고정 기준이다."
+  },
+  "dataset_version": "listenbrainz-preprocessing",
+  "matches": true,
+  "manifest_sha256": "57875974e4ac950622995151a6e63ca143daaeb2a8d4ebad0371947048ada01c",
+  "checks": {
+    "inputs_unchanged": true,
+    "package_unchanged": true,
+    "event_accounting": true,
+    "manifest_cleaning_matches": true,
+    "manifest_accounting_verified": true,
+    "manifest_rules_match": true,
+    "manifest_input_validation_matches": true,
+    "manifest_evaluation_matches": true,
+    "data_tables_match": true,
+    "csv_matches": true
+  },
+  "set_differences": {
+    "users": {
+      "missing": 0,
+      "extra": 0
+    },
+    "items": {
+      "missing": 0,
+      "extra": 0
+    },
+    "train_interactions": {
+      "missing": 0,
+      "extra": 0
+    },
+    "validation_targets": {
+      "missing": 0,
+      "extra": 0
+    },
+    "validation_users": {
+      "expected_users": {
+        "missing": 0,
+        "extra": 0
+      },
+      "stored_target_users": {
+        "missing": 0,
+        "extra": 0
+      }
+    },
+    "test_targets": {
+      "missing": 0,
+      "extra": 0
+    },
+    "test_users": {
+      "expected_users": {
+        "missing": 0,
+        "extra": 0
+      },
+      "stored_target_users": {
+        "missing": 0,
+        "extra": 0
+      }
+    }
+  }
+}

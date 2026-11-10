@@ -1,0 +1,4 @@
+﻿dataset_version,listener_band,tracks,valid_rows_before,events_after,removed_rows,removal_pct
+listenbrainz-preprocessing,1,1204318,2299595,2185728,113867,4.9516110445534975
+listenbrainz-preprocessing,2,158869,641330,611879,29451,4.592175635008498
+listenbrainz-preprocessing,3+,161818,4077394,3825977,251417,6.166119830460338

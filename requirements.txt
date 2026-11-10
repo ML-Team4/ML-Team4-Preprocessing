@@ -1,2 +1,7 @@
-# Stage 1 audits and stage 2 event cleaning. Python >=3.11; no pandas/dense arrays.
+# Python >=3.11에서 입력 점검·사건 정제·sparse matrix 패키지 생성에 사용한다.
 duckdb==1.4.4
+numpy==2.2.6
+pyarrow==20.0.0
+scipy==1.15.3
+# EDA의 집계표를 영어 제목·축·범례의 정적 그래프로 저장한다.
+matplotlib==3.10.7

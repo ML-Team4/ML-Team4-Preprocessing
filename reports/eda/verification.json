@@ -1,0 +1,31 @@
+{
+  "dataset_version": "listenbrainz-preprocessing",
+  "matches": true,
+  "status": "passed",
+  "checks": {
+    "fixed_package_reference_match": true,
+    "exact_output_inventory": true,
+    "input_source_output_integrity": true,
+    "independent_sql_counts_shares_histogram_quantiles": true,
+    "evaluation_counts_exclusions_target_bands_pair_accounting": true,
+    "figure_values_denominators_units_versions_and_report_tables": true,
+    "all_evaluation_report_tables_periods_categories_units_denominators_rounding": true,
+    "reproduced_tables_figures_and_analysis_manifest": true
+  },
+  "mismatches": 0,
+  "verification_sources": {
+    "reports/listening-eda.md": {
+      "bytes": 23805,
+      "sha256": "52b18f2bfa136e1cb15edb3d83ff32b6f49021a193f0142ed9d46492b1055356"
+    },
+    "scripts/verify_listening_analysis.py": {
+      "bytes": 22628,
+      "sha256": "088a47b49bed9b98ace70c6ac6aba774969a310d590f202e294741e10c2476d4"
+    }
+  },
+  "analysis_manifest_fingerprint": {
+    "bytes": 10899,
+    "sha256": "daa21e1c7242451ffe4a76ed1ce96fd64fb27aba4babcd04a464099140b48aee"
+  },
+  "scope": "CSV 별도 SQL 집계·집계표·그림 명세·보고서 표; 그림 배치는 별도 육안 검사"
+}
