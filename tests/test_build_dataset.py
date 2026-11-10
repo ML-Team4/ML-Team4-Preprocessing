@@ -182,6 +182,8 @@ class DatasetBuildTest(unittest.TestCase):
         package = run_example(self.output, "baseline")
         manifest = json.loads((package / "dataset_manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["source"]["kind"], "synthetic_example")
+        self.assertEqual(set(manifest["execution"]), {"source_and_config_sha256", "reproduction_argv"})
+        self.assertNotIn("local_config", manifest["execution"]["source_and_config_sha256"])
         self.assertEqual(set(p.name for p in package.iterdir()), {*manifest["files"], "dataset_manifest.json"})
         for name, entry in manifest["files"].items():
             self.assertEqual(build.fingerprint(package / name),

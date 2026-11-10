@@ -362,12 +362,12 @@ def verify_manifest_metadata(manifest: dict, raw: Path, reference_path: Path) ->
     require_metadata(manifest["validation"], {"status": "passed"}, "validation")
     hashes = manifest["execution"]["source_and_config_sha256"]
     required = {"scripts/build_dataset.py", "scripts/preprocess_events.py", "scripts/audit_raw_data.py",
-                "docs/dataset-package-readme.md", "requirements.txt", "input_reference", "local_config"}
+                "docs/dataset-package-readme.md", "requirements.txt", "input_reference"}
     if (not isinstance(hashes, dict) or not required.issubset(hashes)
             or any(not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None
                    for value in hashes.values())):
         raise ValueError("실행 코드·설정 SHA256의 필수 항목 또는 형식이 다릅니다")
-    # 다른 환경에서의 재검증도 허용한다. 과거 실행 코드와 설정은 기록된 지문으로 추적한다.
+    # 생성 당시의 코드와 고정 기준은 기록된 지문으로 추적한다. 이전 manifest의 추가 필드도 허용한다.
     require_metadata(hashes, {"input_reference": sha256(reference_path)}, "source_and_config_sha256")
     readme_digest = manifest["files"]["README.md"]["sha256"]
     if "distribution" in manifest:

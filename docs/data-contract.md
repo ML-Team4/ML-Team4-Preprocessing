@@ -23,7 +23,7 @@ user_idx는 정제된 train에 이력이 있는 원본 user_id를 숫자 오름�
 | test_targets.csv | user_idx int32, item_idx int32 | 테스트 평가 사용자만의 중복 없는 정답 쌍, user_idx → item_idx |
 | validation_users.csv | user_idx, 10진 정수 | 헤더 포함 UTF-8 BOM, user_idx 오름차순, 중복 없음 |
 | test_users.csv | user_idx, 10진 정수 | 헤더 포함 UTF-8 BOM, user_idx 오름차순, 중복 없음 |
-| dataset_manifest.json | UTF-8 JSON object | 버전·생성 기준·집계·파일 해시·실행 추적 |
+| dataset_manifest.json | UTF-8 JSON object | 버전·생성 기준·집계·파일 해시·재현 명령 |
 
 items의 artist_key/recording_key는 ID용 정규화 필드이다. artist_name/recording_name은 train에서 선택한 대표 원문 이름 쌍이다. 대표 선택은 [전처리 기준](preprocessing-rules.md)의 사건별 원문 선택 → 빈도 내림차순 → UTF-8 바이트 동률 정렬을 따른다. 표시 이름에서 ID를 역추정하지 않는다. 추가 원문 표기 파일이나 제외 사용자 기록을 만들면 데이터 공간에 두고 manifest에 스키마를 추가한다.
 
@@ -70,13 +70,13 @@ E는 해당 기간의 평가 사용자, T_u는 정답 집합, L_u는 추천 순�
 | --- | --- |
 | 식별 | contract_version, dataset_version, created_at_utc, 처리 규칙 버전 |
 | 입력 | 원본 이름·바이트·SHA256, 부속 파일 해시, 출처 URL·덤프 스냅샷·CC0 근거 |
-| 처리 | 정규화 코드포인트·Unicode/엔진 버전, 중복 키와 대표 이름 규칙, 제외 사유·처리 전후 통계 |
+| 처리 | 정규화 코드포인트, 중복 키와 대표 이름 규칙, 제외 사유·처리 전후 통계 |
 | 분할 | UTC의 start_inclusive/end_exclusive, train 고정·재학습 없음 |
 | 매핑 | ID 시작 0·정렬·자료형, U/I, 사용자 및 곡 매핑 파일 SHA256 |
 | 파일 | 상대 파일명, bytes, SHA256, rows, 컬럼·자료형·정렬, CSV 형식·인코딩·헤더 여부 |
 | 평가 | 후보·정답 정의, 기간별 사용자·정답 수, 제외 규모·분모·중복 여부 |
-| 추적 | Git branch/HEAD(없으면 null), dirty 상태, 실제 생성 코드와 설정의 해시, Python·의존성·OS·명령·실행 결과 |
+| 재현 | 생성 코드·의존성 명세·고정 입력 기준의 SHA256, 재현 명령 |
 
-manifest는 자기 자신의 SHA256을 내부에 넣지 않는다. 데이터 버전 묶음 전체를 검증할 때 manifest의 SHA256은 내부 검증 기록에 보관한다. 문서와 완료 설명에는 검사 범위와 결과를 요약한다. 개인 절대 경로·토큰·사용자 원본 ID 목록을 manifest나 Git 문서에 넣지 않는다. 파일 내용이나 ID 규칙이 바뀌면 데이터 버전을 올리고 모든 파일을 같은 버전으로 함께 전달한다.
+manifest는 자기 자신의 SHA256을 내부에 넣지 않는다. 데이터 버전 묶음 전체를 검증할 때 manifest의 SHA256은 내부 검증 기록에 보관한다. 문서와 완료 설명에는 검사 범위와 결과를 요약한다. 공개 manifest는 공통 재현에 필요한 정보만 기록한다. 실행 장비·브랜치·자원 설정과 개인 설정의 해시는 공개 기록에서 제외한다. 개인 절대 경로·토큰·사용자 원본 ID 목록을 manifest나 Git 문서에 넣지 않는다. 파일 내용이나 ID 규칙이 바뀌면 데이터 버전을 올리고 모든 파일을 같은 버전으로 함께 전달한다.
 
 `validation.status`는 생성기의 저장·재로딩 검사 상태다. 원본 기준 독립 검증과 전달 가능 여부는 해당 데이터 버전과 함께 [CSV 생성·검증 보고서](../reports/csv-dataset-validation.md)에 기록한다.

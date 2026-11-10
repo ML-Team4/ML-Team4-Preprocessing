@@ -18,6 +18,10 @@ def create_zip(package: Path, output: Path) -> None:
     if output.exists():
         raise FileExistsError("기존 ZIP을 보존하도록 새 출력 경로를 지정하세요")
     manifest = json.loads((package / "dataset_manifest.json").read_text(encoding="utf-8"))
+    execution = manifest["execution"]
+    if (set(execution) != {"source_and_config_sha256", "reproduction_argv"}
+            or "local_config" in execution["source_and_config_sha256"]):
+        raise ValueError("공개 범위를 벗어난 실행 정보가 있습니다. 공개 형식의 manifest로 다시 생성하세요")
     before = package_fingerprints(package, manifest)
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="package-zip-", dir=output.parent) as work:

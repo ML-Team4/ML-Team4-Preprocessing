@@ -1,6 +1,7 @@
 """주별 CSV의 값·중복·경계 정밀도와 동일 전처리 결과를 검사한다."""
 import csv
 import gzip
+import json
 import shutil
 import sys
 import tempfile
@@ -86,6 +87,18 @@ class RawCsvTest(unittest.TestCase):
                                     for name in z.namelist()))
             with self.assertRaises(FileExistsError):
                 create_zip(converted, archive)
+
+            manifest_path = converted / "dataset_manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["execution"]["os"] = "legacy-platform"
+            manifest["execution"]["source_and_config_sha256"]["local_config"] = events.base.sha256(config)
+            manifest_path.write_text(json.dumps(manifest))
+            self.assertTrue(validate_dataset(config, converted, reference_path=reference,
+                expected_users=source["expected_users"])["matches"])
+            rejected_zip = root / "rejected.zip"
+            with self.assertRaisesRegex(ValueError, "공개 범위를 벗어난 실행 정보"):
+                create_zip(converted, rejected_zip)
+            self.assertFalse(rejected_zip.exists())
 
 
 if __name__ == '__main__':

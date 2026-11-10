@@ -15,8 +15,8 @@
   "mismatches": 0,
   "verification_sources": {
     "reports/listening-eda.md": {
-      "bytes": 23796,
-      "sha256": "d103ea646449e0ffa90175f1c033947cbcddc2b5655290243e43593458756d52"
+      "bytes": 23805,
+      "sha256": "52b18f2bfa136e1cb15edb3d83ff32b6f49021a193f0142ed9d46492b1055356"
     },
     "scripts/verify_listening_analysis.py": {
       "bytes": 22628,
@@ -25,7 +25,7 @@
   },
   "analysis_manifest_fingerprint": {
     "bytes": 10899,
-    "sha256": "ad75c11bfb85e554e5a849d9e29ad689e34bce08c80e6056cd3a38ae43efbda2"
+    "sha256": "083fdda5bbfe625c0ebf90187d002c0fc00356cf51c3819773a5646750aac4e5"
   },
   "scope": "CSV 별도 SQL 집계·집계표·그림 명세·보고서 표; 그림 배치는 별도 육안 검사"
 }
