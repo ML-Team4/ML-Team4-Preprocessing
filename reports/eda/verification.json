@@ -25,7 +25,7 @@
   },
   "analysis_manifest_fingerprint": {
     "bytes": 10899,
-    "sha256": "083fdda5bbfe625c0ebf90187d002c0fc00356cf51c3819773a5646750aac4e5"
+    "sha256": "daa21e1c7242451ffe4a76ed1ce96fd64fb27aba4babcd04a464099140b48aee"
   },
   "scope": "CSV 별도 SQL 집계·집계표·그림 명세·보고서 표; 그림 배치는 별도 육안 검사"
 }

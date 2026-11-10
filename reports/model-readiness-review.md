@@ -6,7 +6,7 @@
 
 **기본 전처리 규칙은 타당하며 두 추천 모델을 비교할 수 있는 학습 신호가 있다. 높은 추천 정확도와 인기 편향 개선은 아직 입증되지 않았다.** 전체 사용자 대비 항목 수, 동일 학습 패턴 곡, Item-based 동률, 시간 이상 신호, 메모리 사용 방식이 주요 위험이다. 데이터를 더 많이 정제하면 자동으로 성능이 좋아진다는 근거는 없다.
 
-직접 관측한 주요 통계와 해석은 이 Markdown 보고서, 기본 검사값은 [원본 보고서](raw-data-audit.md)에서 Git으로 읽을 수 있다. 상세 기계 판독 통계인 `reports/model-readiness-diagnostics.json`은 로컬 생성물로 Git에서 제외되며 새 clone에는 없다. 재생성 명령은 아래 재현 명령에 있다. JSON 없이도 두 Markdown 보고서와 [전처리 계획](../docs/preprocessing-rules.md)·[데이터 계약](../docs/data-contract.md)을 읽고 공통 전처리 준비를 시작할 수 있다. 아래에서 통계·수학적 추론·미검증 항목을 구분한다. 모델을 학습하거나 실제 추천 목록·Recall·ARP를 계산하지 않았다. 수학적 Recall 상한과 양의 유사도 경로 비율은 모델 성능 측정값이 아니다.
+직접 관측한 주요 통계와 해석은 이 Markdown 보고서, 기본 검사값은 [원본 보고서](raw-data-audit.md)에서 Git으로 읽을 수 있다. 상세 기계 판독 통계인 `.cache/audit-reports/model-readiness-diagnostics.json`은 로컬 생성물로 Git에서 제외되며 새 clone에는 없다. 재생성 명령은 아래 재현 명령에 있다. JSON 없이도 두 Markdown 보고서와 [전처리 계획](../docs/preprocessing-rules.md)·[데이터 계약](../docs/data-contract.md)을 읽고 공통 전처리 준비를 시작할 수 있다. 아래에서 통계·수학적 추론·미검증 항목을 구분한다. 모델을 학습하거나 실제 추천 목록·Recall·ARP를 계산하지 않았다. 수학적 Recall 상한과 양의 유사도 경로 비율은 모델 성능 측정값이 아니다.
 
 | 검토 영역 | 판정 | 필요한 조치 |
 | --- | --- | --- |
