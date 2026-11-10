@@ -30,3 +30,15 @@ config/*.local.*
 !config/paths.example.toml
 /reports/raw-data-audit.json
 /reports/model-readiness-diagnostics.json
+# 개인별 이력이 없는 EDA 소규모 집계표만 버전 관리한다.
+!/reports/eda/tables/dataset_summary.csv
+!/reports/eda/tables/deduplication_impact.csv
+!/reports/eda/tables/evaluation_pair_accounting.csv
+!/reports/eda/tables/evaluation_users.csv
+!/reports/eda/tables/normalization_impact.csv
+!/reports/eda/tables/period_activity.csv
+!/reports/eda/tables/popularity_bands.csv
+!/reports/eda/tables/target_count_bands.csv
+!/reports/eda/tables/target_summary.csv
+!/reports/eda/tables/user_history_histogram.csv
+!/reports/eda/tables/user_summary.csv

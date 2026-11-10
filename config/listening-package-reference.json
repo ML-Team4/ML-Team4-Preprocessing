@@ -1,0 +1,66 @@
+{
+  "provenance": {
+    "source_record": ".cache/csv-dataset-validation-final.json",
+    "validator": "scripts/validate_dataset.py",
+    "report": "reports/csv-dataset-validation.md",
+    "pull_request": "https://github.com/ML-Team4/ML-Team4-Preprocessing/pull/12",
+    "description": "원본 전체와 CSV를 독립 대조한 성공 기록에서 옮긴 고정 기준이다. 검사 대상 패키지에서 재생성하지 않는다. 원래 로컬 기록은 재실행에 필요하지 않다."
+  },
+  "dataset_version": "listenbrainz-8week-v2",
+  "matches": true,
+  "manifest_sha256": "34409454d7e4b47ec6c567c13897233bb00132347f03927821ab26fac062115f",
+  "checks": {
+    "inputs_unchanged": true,
+    "package_unchanged": true,
+    "event_accounting": true,
+    "manifest_cleaning_matches": true,
+    "manifest_accounting_verified": true,
+    "manifest_rules_match": true,
+    "manifest_input_validation_matches": true,
+    "manifest_evaluation_matches": true,
+    "data_tables_match": true,
+    "csv_matches": true
+  },
+  "set_differences": {
+    "users": {
+      "missing": 0,
+      "extra": 0
+    },
+    "items": {
+      "missing": 0,
+      "extra": 0
+    },
+    "train_interactions": {
+      "missing": 0,
+      "extra": 0
+    },
+    "validation_targets": {
+      "missing": 0,
+      "extra": 0
+    },
+    "validation_users": {
+      "expected_users": {
+        "missing": 0,
+        "extra": 0
+      },
+      "stored_target_users": {
+        "missing": 0,
+        "extra": 0
+      }
+    },
+    "test_targets": {
+      "missing": 0,
+      "extra": 0
+    },
+    "test_users": {
+      "expected_users": {
+        "missing": 0,
+        "extra": 0
+      },
+      "stored_target_users": {
+        "missing": 0,
+        "extra": 0
+      }
+    }
+  }
+}
