@@ -1,0 +1,377 @@
+{
+  "window_start_utc": "2026-08-17 00:00:00",
+  "window_end_exclusive_utc": "2026-10-12 00:00:00",
+  "train_end_exclusive_utc": "2026-09-28 00:00:00",
+  "validation_end_exclusive_utc": "2026-10-05 00:00:00",
+  "eligible_users_in_hash_half_pool": 20284,
+  "selected_users": 5000,
+  "source_window_rows": 74043337,
+  "candidate_pool_rows": 37306874,
+  "selected_raw_rows": 9350628,
+  "valid_deduplicated_rows": 8813057,
+  "normalized_artist_title_items": 1856351,
+  "train_user_item_pairs": 2739300,
+  "train_items": 1525029,
+  "train_single_listener_items": 1204348,
+  "train_one_two_listener_items": 1363217,
+  "daily": [
+    {
+      "event_date": "2026-08-17",
+      "events": 156792,
+      "users": 2869
+    },
+    {
+      "event_date": "2026-08-18",
+      "events": 162533,
+      "users": 2920
+    },
+    {
+      "event_date": "2026-08-19",
+      "events": 162881,
+      "users": 2949
+    },
+    {
+      "event_date": "2026-08-20",
+      "events": 161678,
+      "users": 2942
+    },
+    {
+      "event_date": "2026-08-21",
+      "events": 166887,
+      "users": 2941
+    },
+    {
+      "event_date": "2026-08-22",
+      "events": 154121,
+      "users": 2803
+    },
+    {
+      "event_date": "2026-08-23",
+      "events": 149578,
+      "users": 2706
+    },
+    {
+      "event_date": "2026-08-24",
+      "events": 157037,
+      "users": 2876
+    },
+    {
+      "event_date": "2026-08-25",
+      "events": 146865,
+      "users": 2896
+    },
+    {
+      "event_date": "2026-08-26",
+      "events": 155740,
+      "users": 2928
+    },
+    {
+      "event_date": "2026-08-27",
+      "events": 158171,
+      "users": 2900
+    },
+    {
+      "event_date": "2026-08-28",
+      "events": 159925,
+      "users": 2911
+    },
+    {
+      "event_date": "2026-08-29",
+      "events": 145036,
+      "users": 2777
+    },
+    {
+      "event_date": "2026-08-30",
+      "events": 145267,
+      "users": 2706
+    },
+    {
+      "event_date": "2026-08-31",
+      "events": 156516,
+      "users": 2917
+    },
+    {
+      "event_date": "2026-09-01",
+      "events": 160390,
+      "users": 2979
+    },
+    {
+      "event_date": "2026-09-02",
+      "events": 159338,
+      "users": 2959
+    },
+    {
+      "event_date": "2026-09-03",
+      "events": 160054,
+      "users": 2995
+    },
+    {
+      "event_date": "2026-09-04",
+      "events": 166490,
+      "users": 3021
+    },
+    {
+      "event_date": "2026-09-05",
+      "events": 151234,
+      "users": 2832
+    },
+    {
+      "event_date": "2026-09-06",
+      "events": 150206,
+      "users": 2820
+    },
+    {
+      "event_date": "2026-09-07",
+      "events": 159408,
+      "users": 2941
+    },
+    {
+      "event_date": "2026-09-08",
+      "events": 160040,
+      "users": 3055
+    },
+    {
+      "event_date": "2026-09-09",
+      "events": 164725,
+      "users": 3098
+    },
+    {
+      "event_date": "2026-09-10",
+      "events": 163997,
+      "users": 3082
+    },
+    {
+      "event_date": "2026-09-11",
+      "events": 163797,
+      "users": 3085
+    },
+    {
+      "event_date": "2026-09-12",
+      "events": 150272,
+      "users": 2883
+    },
+    {
+      "event_date": "2026-09-13",
+      "events": 142245,
+      "users": 2761
+    },
+    {
+      "event_date": "2026-09-14",
+      "events": 160290,
+      "users": 3012
+    },
+    {
+      "event_date": "2026-09-15",
+      "events": 161098,
+      "users": 3070
+    },
+    {
+      "event_date": "2026-09-16",
+      "events": 164753,
+      "users": 3081
+    },
+    {
+      "event_date": "2026-09-17",
+      "events": 160282,
+      "users": 3075
+    },
+    {
+      "event_date": "2026-09-18",
+      "events": 163129,
+      "users": 3133
+    },
+    {
+      "event_date": "2026-09-19",
+      "events": 152451,
+      "users": 2927
+    },
+    {
+      "event_date": "2026-09-20",
+      "events": 145532,
+      "users": 2812
+    },
+    {
+      "event_date": "2026-09-21",
+      "events": 165717,
+      "users": 3077
+    },
+    {
+      "event_date": "2026-09-22",
+      "events": 162607,
+      "users": 3101
+    },
+    {
+      "event_date": "2026-09-23",
+      "events": 163231,
+      "users": 3137
+    },
+    {
+      "event_date": "2026-09-24",
+      "events": 165074,
+      "users": 3142
+    },
+    {
+      "event_date": "2026-09-25",
+      "events": 164128,
+      "users": 3165
+    },
+    {
+      "event_date": "2026-09-26",
+      "events": 152962,
+      "users": 2955
+    },
+    {
+      "event_date": "2026-09-27",
+      "events": 151111,
+      "users": 2896
+    },
+    {
+      "event_date": "2026-09-28",
+      "events": 162556,
+      "users": 3066
+    },
+    {
+      "event_date": "2026-09-29",
+      "events": 163351,
+      "users": 3123
+    },
+    {
+      "event_date": "2026-09-30",
+      "events": 162005,
+      "users": 3047
+    },
+    {
+      "event_date": "2026-10-01",
+      "events": 162181,
+      "users": 3056
+    },
+    {
+      "event_date": "2026-10-02",
+      "events": 162807,
+      "users": 3101
+    },
+    {
+      "event_date": "2026-10-03",
+      "events": 148219,
+      "users": 2907
+    },
+    {
+      "event_date": "2026-10-04",
+      "events": 143395,
+      "users": 2806
+    },
+    {
+      "event_date": "2026-10-05",
+      "events": 159795,
+      "users": 3064
+    },
+    {
+      "event_date": "2026-10-06",
+      "events": 158947,
+      "users": 3079
+    },
+    {
+      "event_date": "2026-10-07",
+      "events": 162062,
+      "users": 3017
+    },
+    {
+      "event_date": "2026-10-08",
+      "events": 165465,
+      "users": 3051
+    },
+    {
+      "event_date": "2026-10-09",
+      "events": 159949,
+      "users": 2983
+    },
+    {
+      "event_date": "2026-10-10",
+      "events": 147775,
+      "users": 2808
+    },
+    {
+      "event_date": "2026-10-11",
+      "events": 130962,
+      "users": 2637
+    }
+  ],
+  "partitions": [
+    {
+      "partition": "test",
+      "events": 1084955,
+      "users": 4114,
+      "items": 418779
+    },
+    {
+      "partition": "train",
+      "events": 6623588,
+      "users": 5000,
+      "items": 1525029
+    },
+    {
+      "partition": "validation",
+      "events": 1104514,
+      "users": 4205,
+      "items": 418377
+    }
+  ],
+  "evaluation": {
+    "validation": {
+      "eligible_users": 3922,
+      "target_user_item_pairs": 193316,
+      "one_two_listener_target_pairs": 64846,
+      "users_with_one_two_listener_targets": 3546,
+      "new_item_events": 228695
+    },
+    "test": {
+      "eligible_users": 3852,
+      "target_user_item_pairs": 201195,
+      "one_two_listener_target_pairs": 66998,
+      "users_with_one_two_listener_targets": 3485,
+      "new_item_events": 255486
+    }
+  },
+  "user_history_quantiles": [
+    {
+      "min_events": 10,
+      "median_events": 743.5,
+      "p95_events": 5641.4000000000015,
+      "max_events": 80707
+    }
+  ],
+  "user_day_quantiles": [
+    {
+      "median_events": 24.0,
+      "p99_events": 529.0,
+      "max_events": 2406
+    }
+  ],
+  "max_user_share": 0.009157662318534874,
+  "raw_names_missing": 0,
+  "duplicate_or_invalid_removed": 537571,
+  "samples": [
+    {
+      "user_index": 1,
+      "listened_at": "2026-08-17 18:00:09",
+      "artist": "Autoheart",
+      "track": "Anniversary (2023 Remaster)"
+    },
+    {
+      "user_index": 2,
+      "listened_at": "2026-08-17 21:47:22",
+      "artist": "LXSTFFACE",
+      "track": "MONTAGEM ROOMLOST (Super Slowed)"
+    },
+    {
+      "user_index": 3,
+      "listened_at": "2026-08-18 18:23:00",
+      "artist": "BONES",
+      "track": "LowPoly"
+    }
+  ],
+  "dataset_file_bytes": 144828609,
+  "dataset_sha256": "4beecfca926a472081b70bcc50c2a20193756a90f9e8dc84336076e86b72e3c3",
+  "raw_exact_unique_events": 8813073,
+  "raw_artist_title_items": 1856579
+}

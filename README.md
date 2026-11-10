@@ -1,166 +1,112 @@
 # ML Team4 공통 데이터 전처리
 
-인기 편향 완화를 통한 개인화 음악 추천 프로젝트의 공통 데이터 저장소다. ListenBrainz 8주 원본에서 CSV 데이터셋 `listenbrainz-8week-v2`를 생성한다. 생성 명령을 실행하면 저장소 옆 `공유 데이터셋/listenbrainz-8week-v2/` 폴더에 학습·평가 CSV 7개가 저장된다. GitHub에서는 생성 코드와 사용 문서를 확인할 수 있다. [CSV 파일과 검증 결과](reports/csv-dataset-validation.md)
+## 모델 담당자용 데이터 사용법
 
-## 출처와 이용 조건
+1. [GitHub 저장소](https://github.com/ML-Team4/ML-Team4-Preprocessing)의 **Code → Download ZIP**으로 내려받고 저장소 ZIP을 푼다.
+2. 저장소 루트에서 동봉된 전처리 ZIP을 `datasets/`에 푼다.
+3. Item-Based CF와 Implicit MF의 공통 입력 폴더를 `datasets/listenbrainz-preprocessing/`로 지정한다.
 
-데이터 제공: MetaBrainz Foundation / ListenBrainz. [공식 데이터 안내](https://listenbrainz.org/data/), [덤프 문서](https://listenbrainz.readthedocs.io/en/latest/users/listenbrainz-dumps.html).
+```bash
+unzip datasets/listenbrainz-preprocessing.zip -d datasets
+```
 
-전달된 source_manifest.json에는 덤프 2723, 스냅샷 UTC 2026-10-15 00:00:02.588811 및 다음 [원본 TAR 경로](https://data.metabrainz.org/pub/musicbrainz/listenbrainz/fullexport/listenbrainz-dump-2723-20261015-000002-full/listenbrainz-spark-dump-2723-20261015-000002-full.tar)가 기록되어 있다. 이 링크는 출처 기록이며 다운로드 명령이 아니다. 현재 사용 가능한지는 재검증하지 않았다.
+압축을 풀면 `datasets/listenbrainz-preprocessing/train_interactions.csv`가 바로 보여야 한다. 파일 탐색기로 풀 때도 `datasets/`를 대상 폴더로 선택한다. ZIP 안에 패키지 폴더가 포함되어 있다.
 
-동봉 COPYING에서 CC0 1.0 Universal 문구를 직접 확인했다. [CC0 안내](https://creativecommons.org/publicdomain/zero/1.0/). 데이터 공유 시 COPYING·source_manifest·전달 파일의 SHA256을 함께 보관하고 제공 기관을 표기한다. 청취 기록의 공개 조건이 음원 파일 권한을 의미하지는 않는다. 이 설명은 데이터의 조건이며 저장소 코드의 라이선스를 별도로 정한 것은 아니다.
+| 파일 | 용도 |
+| --- | --- |
+| train_interactions.csv | `user_idx`, `item_idx`, `listen_count`로 학습 행렬 생성 |
+| users.csv, items.csv | 공통 사용자·곡 인덱스 사용, 곡명·아티스트명·학습 구간 고유 청취자 수 조회 |
+| validation_users.csv, validation_targets.csv | 공통 검증 사용자와 정답으로 모델 설정 선택 |
+| test_users.csv, test_targets.csv | 설정 확정 후 공통 테스트 사용자와 정답으로 최종 평가 |
 
-거대한 공식 TAR를 다시 내려받지 않는다. 표본 추출 방법·공식 TAR 규모는 기존 자료의 설명이며, 이번 점검은 로컬 전달 파일만 검증했다. 원래 표본은 학습 이력과 고정 해시 순서로 선정된 5,000명이고 미래 활동으로 다시 고르지 않는다. 공개 보고서에서는 원본 user_id 대신 기존 표시 ID를 사용한다.
+두 모델 담당자는 압축을 푼 폴더에서 작업을 시작하며, 곡 인덱스와 시간 분할은 제공된 값을 그대로 사용한다. 청취 횟수의 `log1p` 변환 등 모델별 가중치는 각 담당자가 결정한다. 사용자 행 × 곡 열의 학습 행렬은 `(5000, 1525005)`, 고유 학습 좌표는 2,739,292개, 청취 횟수 합계는 6,623,584건이다.
 
-## 설치와 경로 설정
-
-Python 3.11 이상을 사용한다. macOS/Linux와 Colab에서 실행할 수 있으며 Windows에서는 WSL을 사용한다.
+[팀원용 상세 인수인계](docs/data-preprocessing-handoff.md)에서 CSV 헤더·행렬 구성·추천 곡명 조회·평가 정답 연결 예제를 확인한다. CSV를 읽어 보기만 할 때는 `pyarrow`, `scipy`가 필요하다. Python 3.11 이상으로 저장소에서 아래 검사를 실행하면 CSV 7개 로딩, 인덱스·고유 청취자 수·기간별 정답 연결과 실제 곡명을 확인한다.
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-cp config/paths.example.toml config/paths.local.toml
+python scripts/use_dataset.py --data-dir datasets/listenbrainz-preprocessing
 ```
 
-위 명령은 저장소 루트에서 실행한다. `config/paths.local.toml`의 raw_dir을 이미 확보한 verified_dataset 폴더로 수정한다. 개인 경로는 이 로컬 파일에만 쓴다. 모든 상대 경로는 **설정 파일이 있는 폴더 기준**이며 report_dir/cache_dir에도 같은 규칙이 적용된다. raw_dir 아래에 보고서·캐시를 두면 실행을 거부한다.
+## 제공하는 데이터와 처리 결과
 
-필수 입력은 아래 여섯 파일이다. 원본 폴더의 재추출 코드는 실행할 필요가 없다.
+ListenBrainz 덤프 2723에서 확보한 8주·5,000명 청취 표본을 제공한다. 주별 원본 CSV는 **9,350,628행의 중복·대소문자·공백·특수문자·시각 정밀도를 보존**한다. 주별 파일은 전달 단위이며 모델 분할 단위가 아니다.
+
+전처리는 NFC와 고정 공백 정리 후 같은 사용자·시각·곡 키의 중복 초과 537,575행을 제외한다. 결측·기간 밖·빈 이름 제외는 각 0행이다. 서로 다른 시각의 반복 청취, 저인기 곡과 고활동 사용자는 유지한다. train만으로 공통 인덱스·대표 곡명·고유 청취자 수를 만들고 같은 train을 두 평가 기간에 사용한다.
+
+| 구간 | UTC 시작 포함 | UTC 종료 미포함 | 정제 사건 | 평가 사용자 / 정답 쌍 |
+| --- | --- | --- | ---: | ---: |
+| train | 2026-08-17 00:00:00 | 2026-09-28 00:00:00 | 6,623,584 | — |
+| validation | 2026-09-28 00:00:00 | 2026-10-05 00:00:00 | 1,104,514 | 3,922 / 193,323 |
+| test | 2026-10-05 00:00:00 | 2026-10-12 00:00:00 | 1,084,955 | 3,852 / 201,203 |
 
 ```text
-verified_dataset/
-  listens_8weeks_5000users.parquet
-  selected_users.csv
-  README.txt
-  source_manifest.json
-  verified_8week_summary.json
-  COPYING
+datasets/
+  raw/
+    listens_2026-08-17.csv.gz ... listens_2026-10-05.csv.gz  # 연속 8주
+    selected_users.csv
+    README.txt                 # 제공받은 출처 설명 원문
+    source_manifest.json       # 덤프·표본 추출 출처 원문
+    verified_8week_summary.json # 변환 전 Parquet 검증 원문
+    COPYING
+    distribution_manifest.json # 주별 CSV 변환·중복 포함 대조 결과
+  listenbrainz-preprocessing.zip
+  listenbrainz-preprocessing/   # 사용자가 ZIP 해제 시 생성, Git 게시 제외
 ```
 
-## 점검 실행
+## 원본에서 전처리 재현
 
-설치와 로컬 경로 설정을 마친 뒤 가상환경을 활성화한 상태로 저장소 루트에서 실행한다.
+모델 담당자의 학습은 위 전처리 ZIP에서 시작한다. 전처리 규칙을 점검하거나 재현하려는 경우 저장소 루트에서 설치 후 아래를 실행한다. 기본 설정은 동봉된 `datasets/raw/`를 압축 상태로 직접 읽는다. 별도 원본 전달이나 전체 덤프 다운로드, 개인 경로 설정이 필요하지 않다.
 
 ```bash
-# 로컬 raw-data-audit.json 재생성 (raw-data-audit.md도 갱신)
-python scripts/audit_raw_data.py --config config/paths.local.toml
-# 로컬 model-readiness-diagnostics.json 재생성
-python scripts/check_model_readiness.py --config config/paths.local.toml
+# 원본 주별 CSV·출처 파일의 고정 무결성, 스키마와 선정 5,000명 확인
+python scripts/preprocess_events.py --inputs-only
+# 원본 진단 결과를 .cache/audit-reports/에 저장
+python scripts/audit_raw_data.py
+# 실제 정제·시간 분할·CSV 저장·재로딩 검사
+python scripts/build_dataset.py --output-root .cache/reproduced
+# 새 ZIP을 별도 출력 경로에 생성
+python scripts/package_dataset.py
+# 원본에서 별도로 계산한 기대값과 재생성 패키지의 전체 행 대조
+python scripts/validate_dataset.py --package .cache/reproduced/listenbrainz-preprocessing
+# 동봉 ZIP의 CSV 7개와 재생성 CSV의 바이트 단위 비교
+python scripts/verify_distribution.py --reproduced .cache/reproduced/listenbrainz-preprocessing
 python -m unittest discover -s tests -v
 ```
 
-과거 실행 결과·해시 기록을 보존하며 재실행하려면 기존 보고서를 별도 보관하거나 로컬 설정의 `report_dir`을 다른 로컬 폴더로 지정한다. 후자의 경우 같은 명령으로 해당 폴더에 새 결과를 쓰며, 기존 `reports/` 기록은 유지된다.
-sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계없다. 점검은 약 152만 학습 항목 전체를 유지한다.
+`.cache/reproduced/listenbrainz-preprocessing/`가 이미 있으면 생성기가 중단한다. 반복 실행은 `--output-root .cache/reproduced-another`처럼 새 출력 폴더를 지정하고 검증 명령에도 그 경로를 사용한다. 기존 배포본과 재생성 결과를 덮어쓰지 않는다. 정제·분할과 품질 플래그만 확인하려면 `python scripts/preprocess_events.py --report .cache/cleaning-check.md`, 독립 시간 분할은 `python scripts/review_temporal_split.py`로 검사한다.
 
-## 직접 확인한 주요 결과
+설정 파일의 상대 경로는 설정 파일이 있는 폴더 기준이다. 기본값은 [paths.example.toml](config/paths.example.toml)이며 원본 CSV의 기준은 [raw-csv-reference.toml](config/raw-csv-reference.toml)이다. 기존 Parquet을 가진 사용자는 예제를 `config/paths.local.toml`로 복사하고 `raw_dir`만 기존 원본 폴더로 바꾼 뒤 `--config config/paths.local.toml`을 지정할 수 있다. 이 경우 [기존 Parquet 기준](config/raw-input-reference.toml)을 적용한다. 형식별로 같은 정제·분할 함수를 사용한다.
 
-| 구분 | 이번 실행 |
-| --- | --- |
-| 원본 | 9,350,628행 / 5,000명 / 56일 |
-| UTC 시각 | 2026-08-17 00:00:00 ~ 2026-10-11 23:59:59 |
-| 결측·빈 이름·범위 밖 | 모두 0 |
-| 원문 동일 사건 키의 초과 행 | 537,555 |
-| 새 정규화 키의 초과 행 | 537,575 |
-| 임시 진단의 사건 / 전체 항목 | 8,813,053 / 1,856,311 |
-| 임시 진단의 학습 사건 / 항목 / user-item | 6,623,584 / 1,525,005 / 2,739,292 |
-| 진단 검증 평가 사용자 / 정답 쌍 | 3,922 / 193,323 |
-| 진단 테스트 평가 사용자 / 정답 쌍 | 3,852 / 201,203 |
-
-위 집계는 최종 전처리 전달본 통계가 아니다. 과거 수치와의 차이를 공백 규칙 재현으로 확인했다. 세부 샘플과 제외 규모는 보고서에 있다. 사용자별 정상 반복을 보존하며 저인기·과도한 청취·모호한 비음악 콘텐츠를 근거 없이 제거하지 않는다.
-
-## 입력 검증·정제·UTC 분할
-
-[Issue #1](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/1)의 입력 검증·정제·분할은 [PR #2](https://github.com/ML-Team4/ML-Team4-Preprocessing/pull/2)에서 main에 반영했다. 원본 점검의 정규화 함수와 고정 시간 경계를 재사용하며 원본 6개 파일의 크기·SHA256, 정확한 Parquet 스키마와 선정 사용자 5,000명을 검증한다.
-
-```bash
-.venv/bin/python scripts/preprocess_events.py --config config/paths.local.toml --inputs-only
-.venv/bin/python scripts/preprocess_events.py --config config/paths.local.toml --report .cache/preprocessing/cleaning-split-recheck.md
-.venv/bin/python -m unittest discover -s tests -v
-```
-
-재실행 보고서는 새 파일명을 사용한다. 기존 보고서는 덮어쓰지 않는다. 전체 실행에서 원본 9,350,628행 = 중복 초과 537,575행 + train 6,623,584건 + validation 1,104,514건 + test 1,084,955건을 확인했다. 결측·기간 밖·빈 이름 제외는 각각 0건이다. 품질 진단은 train 기준의 별도 관계에서 집계하며 사건 삭제·계정 병합을 하지 않는다.
-
-[실행 보고서](reports/cleaning-split-validation.md)에 입력 검증과 정제·분할 집계를 기록했다. 생성 코드가 이어받는 함수와 임시 관계는 [재사용 안내](docs/cleaning-split-guide.md)에 있다.
-
-## 학습·평가 패키지 생성
-
-설치 후 저장소 루트에서 아래 명령으로 합성 입력을 검증한다. CSV 저장·재로딩, 기간 경계와 평가 정답을 검사한다.
-
-```bash
-.venv/bin/python -m unittest discover -s tests -v
-```
-
-예제의 CSR은 `(5, 11)`에 비제로 15개, 청취 횟수 합계 18이다. validation은 평가 사용자 1명과 정답 1쌍, test는 2명과 3쌍이다. 테스트는 패키지의 README 예제도 실행해 크기·SHA256, CSR 한 행, 곡 인기도와 기간별 정답을 확인한다. 파일 스키마는 [데이터 계약](docs/data-contract.md), 실제 합성 실행 기록은 [PROGRESS.md](PROGRESS.md)에 있다.
-
-실제 원본으로 실행할 때는 정제·분할에 사용한 로컬 설정과 아직 존재하지 않는 데이터 버전 이름을 사용한다.
-
-```bash
-.venv/bin/python scripts/build_dataset.py --config config/paths.local.toml \
-  --output-root "../공유 데이터셋" --version listenbrainz-8week-v2
-```
-
-생성기는 공통 정제·시간 분할을 수행한 뒤 학습 기록·사용자 매핑·곡 정보·검증 정답·테스트 정답·기간별 평가 사용자 파일을 CSV로 저장한다. 헤더가 있고 UTF-8 BOM으로 인코딩하며 쉼표·따옴표·개행을 보존한다. 모든 CSV를 명시한 자료형으로 다시 읽어 전체 값과 정렬을 대조한 뒤 버전 폴더를 확정한다. 무결성·스키마·처리 집계는 manifest에 보관한다.
-
-### 전체 원본 기준의 독립 검증
-
-생성기의 재로딩 검사는 파일과 생성 관계를 대조한다. 아래 명령은 원본에서 별도로 만든 학습 좌표·횟수·인기도와 두 평가 기간의 사용자·정답을 저장된 파일 전체와 대조한다. 기존 패키지는 읽기 전용으로 열며 `"matches": true`, 모든 CSV의 누락·초과 0건을 확인한다.
-
-```bash
-.venv/bin/python scripts/validate_dataset.py --config config/paths.local.toml \
-  --package "../공유 데이터셋/listenbrainz-8week-v2"
-```
-
-동일 버전의 저장 위치가 이미 있으면 생성 명령이 실행을 거부한다. 새로 생성해 비교할 때는 새 출력 루트를 지정한다. 새로 생성한 파일의 논리적 내용과 집계를 대조한다. 원본이 없는 모델 담당자는 [패키지 README](docs/dataset-package-readme.md)의 예제를 받은 패키지 폴더에서 실행한다.
-
-학습 CSV는 2,739,292행이며 청취 횟수 합계는 6,623,584건이다. 사용자 5,000명과 곡 1,525,005개의 공통 ID를 사용한다. [패키지 README](docs/dataset-package-readme.md)의 예제로 CSV를 읽고 희소 행렬과 곡명을 확인한다. [공통 ID와 평가 정의](docs/data-preprocessing-handoff.md)를 두 모델에 동일하게 적용한다.
+[배포 검증 보고서](reports/distribution-validation.md)에 원본과 주별 CSV의 중복 포함 전체 대조, 기존 CSV와의 비교, 다운로드본 검증 결과를 기록했다.
 
 ## 청취 분포와 평가 범위 분석
 
-CSV `listenbrainz-8week-v2`의 학습 인기도·사용자 이력과 평가 가능 범위를 [한국어 EDA 보고서](reports/listening-eda.md)에서 확인한다. [곡 수·청취 사건 비중 비교](reports/eda/figures/popularity-shares.png), [사용자별 고유 학습곡 분포](reports/eda/figures/user-training-tracks.png), [작은 집계표](reports/eda/tables/), [분석 manifest](reports/eda/analysis_manifest.json)와 [독립 검증 기록](reports/eda/verification.json)를 제공한다. 개인별 이력은 산출물에 포함하지 않는다.
+[EDA 보고서](reports/listening-eda.md)는 학습 인기도·사용자 이력·평가 제외 규모를 설명한다. 고유 train 청취자가 한 명인 곡은 전체 학습곡의 78.97%, 학습 청취 사건의 33.00%다. [집계표 11개](reports/eda/tables/)와 [그래프 2개](reports/eda/figures/), 내부 manifest·독립 검증 기록을 제공한다. 이 구간은 기술통계이며 모델의 최종 저인기 평가 기준은 별도 선택한다.
 
 ```bash
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python scripts/analyze_listening.py \
-  --package "../공유 데이터셋/listenbrainz-8week-v2" \
-  --output-dir .cache/eda-recheck
-.venv/bin/python scripts/verify_listening_analysis.py \
-  --package "../공유 데이터셋/listenbrainz-8week-v2" \
-  --output-dir .cache/eda-recheck --reproduce
-# 게시할 산출물 자체도 별도로 재현 대조한다.
-.venv/bin/python scripts/verify_listening_analysis.py \
-  --package "../공유 데이터셋/listenbrainz-8week-v2" \
-  --output-dir reports/eda --reproduce
-.venv/bin/python -m unittest discover -s tests -v
-.venv/bin/python -m pip check
+python scripts/analyze_listening.py --output-dir .cache/eda-recheck
+python scripts/verify_listening_analysis.py --output-dir .cache/eda-recheck --reproduce
+# 게시된 집계표·그림도 독립 재현 대조
+python scripts/verify_listening_analysis.py --output-dir reports/eda --reproduce
 ```
 
-이 명령은 원본 Parquet·개인 경로 설정·기존 개인 캐시 없이 CSV 전달본과 저장소의 기존 검증 보고서·[고정 패키지 기준](config/listening-package-reference.json)을 읽는다. 원본 대조 성공 기록의 버전·성공 상태·manifest 식별값을 저장소에 보관해 CSV와 자체 manifest를 함께 바꾼 사본도 거부한다. 검사 대상에서 신뢰 기준을 다시 만들지 않는다. PyArrow로 명시적 자료형을 적용하고 NumPy로 열 단위 집계, Matplotlib으로 영어 그래프를 생성한다. 새 출력 폴더의 집계 CSV 11개·그림 2개·manifest와 `checks_passed: true`를 확인한다. 검증 명령은 DuckDB의 별도 SQL 집계·그림 명세·인기도·기간 활동·모든 평가 표와 재실행 결과를 대조하고 `matches: true`·`mismatches: 0`을 출력한다. `--output-dir`을 생략하면 `reports/eda/`의 생성 결과를 갱신한다. 한국어 해석 보고서는 수동 관리한다.
+EDA는 원본 재전처리 없이 공통 패키지와 저장소의 고정 기준을 사용한다. `--package`로 다른 위치를 지정할 수 있다. 예상 밖 산출물이 있으면 중단하고 기존 파일을 보존한다. 한국어 해석 보고서는 자동으로 덮어쓰지 않는다.
 
-`analysis_manifest.json`은 입력·코드·근거 식별과 예정된 집계 CSV 11개·PNG 2개의 목록·스키마·그림 수치를 기록한다. `verification.json`은 해당 분석 manifest에 대한 독립 검사의 최신 상태이며 재현 산출물 목록에서 제외한다. 생성기는 재생성 후 검증을 `not_run`으로 바꾸고 검증기는 성공·실패를 각각 기록한다. 두 명령은 실제 파일과 고정 상대경로 목록을 대조하며 누락·초과 경로를 표시한다. 생성기는 기존 사용자 파일을 삭제하지 않고 예상 밖 파일이 있으면 중단하므로 새 출력 폴더를 권장한다. `.gitignore`는 예정된 11개 집계 CSV만 예외로 추적한다.
+## 출처와 이용 조건
 
-전체 회귀 테스트 42개와 `pip check`를 통과했다. CSV와 자체 manifest의 동시 변조, 보고서의 169→999 변경과 평가 표 수치·단위·비율 170개 변경, 범주 누락·중복·잘못된 기간·분모, 산출물 누락·초과를 임시 사본에서 거부했다. 정상 보고서의 행 순서 변경은 허용한다.
+데이터 제공자는 MetaBrainz Foundation / ListenBrainz다. [공식 데이터 안내](https://listenbrainz.org/data/)와 [덤프 문서](https://listenbrainz.readthedocs.io/en/latest/users/listenbrainz-dumps.html)를 참고한다. 동봉 [source_manifest.json](datasets/raw/source_manifest.json)의 덤프 2723·스냅샷 `2026-10-15 00:00:02.588811 UTC`와 [README 원문](datasets/raw/README.txt)을 보존한다. 이 자료의 공식 TAR URL은 출처 기록이며 재현에 다운로드가 필요하지 않다. 전체 모집단 추출 과정은 동봉 출처의 설명과 로컬 표본의 검증 범위를 구분한다.
 
-학습곡 1,525,005개·학습 쌍 2,739,292개·청취 횟수 합 6,623,584건과 검증/테스트 정답 193,323쌍/201,203쌍을 기존 검증 결과와 대조했다. train 고유 청취자 1명인 곡은 전체 학습곡의 78.97%, 학습 사건의 33.00%다. 두 비율의 분모와 구간의 용도는 보고서에 명시했다. 1·2·3명 이상은 EDA 구간이며 최종 저인기 평가 기준은 아니다.
+데이터 이용 조건은 [COPYING](datasets/raw/COPYING)의 **CC0 1.0 Universal**이다. 제공 기관과 출처 자료를 함께 보관한다. 청취 기록의 이용 조건은 음원 파일의 권한이나 저장소 코드의 별도 라이선스를 뜻하지 않는다. `verified_8week_summary.json`의 파일 크기·무결성 값은 변환 전 Parquet에 관한 기록이며, 주별 CSV는 별도 고정 기준과 `distribution_manifest.json`으로 검사한다.
 
-## 문서 안내
+## 처리 기준과 검증 문서
 
-설명 문서와 코드 주석은 한국어로 작성한다. 변수·함수·컬럼명과 기술 용어는 영어로 표기하며, 그래프 제목·축·범례도 영어로 작성한다. 반복해서 사용하는 기술 용어와 원문 보존 기준은 [AGENTS.md](AGENTS.md)에 기록했다.
+- [상세 인수인계와 실행 예제](docs/data-preprocessing-handoff.md), [데이터 계약](docs/data-contract.md)
+- [고정 정제 기준](docs/preprocessing-rules.md), [정제·분할 코드 재사용](docs/cleaning-split-guide.md)
+- [원본 점검](reports/raw-data-audit.md), [정제·분할 집계](reports/cleaning-split-validation.md), [시간 분할과 처리 근거](reports/temporal-split-review.md)
+- [CSV 검증](reports/csv-dataset-validation.md), [배포 검증](reports/distribution-validation.md), [모델 적합성과 한계](reports/model-readiness-review.md)
+- [함수·매개변수·출처](docs/audit-code-guide.md)
 
-- [원본 점검 결과 (Markdown)](reports/raw-data-audit.md)
-- [전처리 타당성과 모델 적합성 추가 검토 (Markdown)](reports/model-readiness-review.md)
-- [입력 검증·정제·분할 실행 보고서](reports/cleaning-split-validation.md)
-- [정제 근거와 시간 분할 검증](reports/temporal-split-review.md)
-- [CSV 생성·검증 결과](reports/csv-dataset-validation.md)
-- [CSV 학습 인기도와 평가 범위 EDA](reports/listening-eda.md)
-- [이전 패키지의 원본 대조 기록](reports/preprocessing-report.md)
-- [정제·분할 실행과 코드 재사용](docs/cleaning-split-guide.md)
-- [공통 전처리 기준](docs/preprocessing-plan.md)
-- [파일·ID·행렬·평가 데이터 규격](docs/data-contract.md)
-- [팀 전달 안내](docs/data-preprocessing-handoff.md)
-- [과제·설계 자료 대조](docs/source-review.md)
-- [라이브러리·함수·매개변수와 출처](docs/audit-code-guide.md)
-- [진행 상황과 다음 시작 지점](PROGRESS.md)
-
-코드·문서와 Markdown 보고서를 Git에 저장한다. 원본·중간·전처리·모델 출력·캐시·개인 경로 설정·가상환경은 .gitignore로 제외한다. 진단 JSON은 `/reports/raw-data-audit.json`, `/reports/model-readiness-diagnostics.json` 두 경로만 정확히 제외하며 다른 JSON이나 향후 `dataset_manifest.json`을 확장자로 일괄 제외하지 않는다. CSV 전달본은 로컬의 저장소 옆 공유 데이터셋 폴더에 있다. 팀의 외부 공유 공간은 별도로 정한다.
-
-추가 적합성 검사도 동일한 고정 전처리 규칙을 사용하고 임시 테이블은 삭제한다.
+Git에는 원본 배포 대상과 전처리 ZIP, 코드·문서·EDA 산출물을 포함한다. 압축 해제 사본·기존 Parquet·캐시·개인 설정·모델 출력은 제외한다. 설명은 한국어, 식별자·기술 용어와 그래프 표기는 영어를 사용한다. [표기 기준](AGENTS.md)

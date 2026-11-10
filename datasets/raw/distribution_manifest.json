@@ -1,0 +1,198 @@
+{
+  "format": "weekly gzip CSV",
+  "timestamp_semantics": "UTC, timestamp[us]",
+  "columns": {
+    "user_id": "BIGINT",
+    "listened_at": "TIMESTAMP",
+    "artist_name": "VARCHAR",
+    "recording_name": "VARCHAR"
+  },
+  "encoding": "UTF-8",
+  "header": true,
+  "preserved": [
+    "duplicate rows",
+    "case",
+    "whitespace",
+    "special characters",
+    "microseconds"
+  ],
+  "original_files": [
+    {
+      "file": "listens_8weeks_5000users.parquet",
+      "bytes": 144828609,
+      "sha256": "4beecfca926a472081b70bcc50c2a20193756a90f9e8dc84336076e86b72e3c3"
+    },
+    {
+      "file": "README.txt",
+      "bytes": 5183,
+      "sha256": "fd8104ccfd16875bac897640464d7927ffce8c2057016a53cd6b9bf5625d5e7e"
+    },
+    {
+      "file": "selected_users.csv",
+      "bytes": 76347,
+      "sha256": "6ca4013d636ac7c16aa52ce6fa1e9fa670df1a4aca8eda64ad9f30f45cbe94a5"
+    },
+    {
+      "file": "source_manifest.json",
+      "bytes": 306507,
+      "sha256": "7e0af4eb5328ab661e66efc7bf9378d74cb8c8e1a377d3792ac93889765ec526"
+    },
+    {
+      "file": "verified_8week_summary.json",
+      "bytes": 7606,
+      "sha256": "ac897b3ee55bfd6aa2145dfd16c3eb7705604f6cbaa73646cafdc33d980a445f"
+    },
+    {
+      "file": "COPYING",
+      "bytes": 6390,
+      "sha256": "75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea"
+    }
+  ],
+  "original_manifest_scope": "source_manifest.json과 verified_8week_summary.json은 변환 전 Parquet 원본의 출처·검증 기록이다.",
+  "distribution_scope": "주별 CSV의 고정 무결성 기준은 config/raw-csv-reference.toml이며 Parquet 배포를 요구하지 않는다.",
+  "original": {
+    "rows": 9350628,
+    "users": 5000,
+    "first_utc": "2026-08-17 00:00:00",
+    "last_utc": "2026-10-11 23:59:59"
+  },
+  "converted": {
+    "rows": 9350628,
+    "users": 5000,
+    "first_utc": "2026-08-17 00:00:00",
+    "last_utc": "2026-10-11 23:59:59"
+  },
+  "weeks": [
+    {
+      "file": "listens_2026-08-17.csv.gz",
+      "start_inclusive_utc": "2026-08-17 00:00:00",
+      "end_exclusive_utc": "2026-08-24 00:00:00",
+      "rows": 1179959,
+      "users": 4040,
+      "first_utc": "2026-08-17 00:00:00",
+      "last_utc": "2026-08-23 23:59:59"
+    },
+    {
+      "file": "listens_2026-08-24.csv.gz",
+      "start_inclusive_utc": "2026-08-24 00:00:00",
+      "end_exclusive_utc": "2026-08-31 00:00:00",
+      "rows": 1130268,
+      "users": 4013,
+      "first_utc": "2026-08-24 00:00:00",
+      "last_utc": "2026-08-30 23:59:59"
+    },
+    {
+      "file": "listens_2026-08-31.csv.gz",
+      "start_inclusive_utc": "2026-08-31 00:00:00",
+      "end_exclusive_utc": "2026-09-07 00:00:00",
+      "rows": 1165576,
+      "users": 4114,
+      "first_utc": "2026-08-31 00:00:00",
+      "last_utc": "2026-09-06 23:59:59"
+    },
+    {
+      "file": "listens_2026-09-07.csv.gz",
+      "start_inclusive_utc": "2026-09-07 00:00:00",
+      "end_exclusive_utc": "2026-09-14 00:00:00",
+      "rows": 1167527,
+      "users": 4210,
+      "first_utc": "2026-09-07 00:00:00",
+      "last_utc": "2026-09-13 23:59:59"
+    },
+    {
+      "file": "listens_2026-09-14.csv.gz",
+      "start_inclusive_utc": "2026-09-14 00:00:00",
+      "end_exclusive_utc": "2026-09-21 00:00:00",
+      "rows": 1177299,
+      "users": 4273,
+      "first_utc": "2026-09-14 00:00:01",
+      "last_utc": "2026-09-20 23:59:59"
+    },
+    {
+      "file": "listens_2026-09-21.csv.gz",
+      "start_inclusive_utc": "2026-09-21 00:00:00",
+      "end_exclusive_utc": "2026-09-28 00:00:00",
+      "rows": 1197690,
+      "users": 4326,
+      "first_utc": "2026-09-21 00:00:01",
+      "last_utc": "2026-09-27 23:59:56"
+    },
+    {
+      "file": "listens_2026-09-28.csv.gz",
+      "start_inclusive_utc": "2026-09-28 00:00:00",
+      "end_exclusive_utc": "2026-10-05 00:00:00",
+      "rows": 1178452,
+      "users": 4205,
+      "first_utc": "2026-09-28 00:00:00",
+      "last_utc": "2026-10-04 23:59:58"
+    },
+    {
+      "file": "listens_2026-10-05.csv.gz",
+      "start_inclusive_utc": "2026-10-05 00:00:00",
+      "end_exclusive_utc": "2026-10-12 00:00:00",
+      "rows": 1153857,
+      "users": 4114,
+      "first_utc": "2026-10-05 00:00:01",
+      "last_utc": "2026-10-11 23:59:59"
+    }
+  ],
+  "multiset_comparison": {
+    "missing_rows": 0,
+    "extra_rows": 0,
+    "matches": true
+  },
+  "files": {
+    "listens_2026-08-17.csv.gz": {
+      "bytes": 24835551,
+      "sha256": "9f2eea33c6b233c46db2ee7f94501b8ec661b9c472d5bd3804be2f64cb57c3b4"
+    },
+    "listens_2026-08-24.csv.gz": {
+      "bytes": 23803638,
+      "sha256": "4fd834ab77dda9a252a4104da2f0cc6c8bd422075315ce7191f84e4b8df57820"
+    },
+    "listens_2026-08-31.csv.gz": {
+      "bytes": 24699851,
+      "sha256": "f1004381f2d9e09386714e3b3a764b367e9addfb6201e2e886e5ac979a56422d"
+    },
+    "listens_2026-09-07.csv.gz": {
+      "bytes": 24908576,
+      "sha256": "8f3b1e79fa264cb1bef9ddf9b5973fd3a15a3c8e2dd8e7fc71fbabd1c03c2eb8"
+    },
+    "listens_2026-09-14.csv.gz": {
+      "bytes": 25153962,
+      "sha256": "6d11aec3b4bb2e3c6c0ac4a4fc2ed50827da1c67dc4d0f5ad01b4f4a946d4fcf"
+    },
+    "listens_2026-09-21.csv.gz": {
+      "bytes": 25515081,
+      "sha256": "2f17b97c898301c92d995e46de57c86410c36d18e3aa326d3ffc6a539d3beae7"
+    },
+    "listens_2026-09-28.csv.gz": {
+      "bytes": 24970241,
+      "sha256": "e42807a8722dead9c59a4a22a99e59c33bed87867fed11144ed606aef33a4884"
+    },
+    "listens_2026-10-05.csv.gz": {
+      "bytes": 24547475,
+      "sha256": "921a87ca6d37b4b2899152bdcd71b69a5207fdf6afe3b552bbd006ce70feffbe"
+    },
+    "README.txt": {
+      "bytes": 5183,
+      "sha256": "fd8104ccfd16875bac897640464d7927ffce8c2057016a53cd6b9bf5625d5e7e"
+    },
+    "selected_users.csv": {
+      "bytes": 76347,
+      "sha256": "6ca4013d636ac7c16aa52ce6fa1e9fa670df1a4aca8eda64ad9f30f45cbe94a5"
+    },
+    "source_manifest.json": {
+      "bytes": 306507,
+      "sha256": "7e0af4eb5328ab661e66efc7bf9378d74cb8c8e1a377d3792ac93889765ec526"
+    },
+    "verified_8week_summary.json": {
+      "bytes": 7606,
+      "sha256": "ac897b3ee55bfd6aa2145dfd16c3eb7705604f6cbaa73646cafdc33d980a445f"
+    },
+    "COPYING": {
+      "bytes": 6390,
+      "sha256": "75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea"
+    }
+  }
+}

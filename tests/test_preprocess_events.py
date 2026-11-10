@@ -257,7 +257,7 @@ class InputValidationTest(unittest.TestCase):
                     events.verify_input_files(self.raw, reference)
                 path.write_bytes(original)
         del reference["COPYING"]
-        with self.assertRaisesRegex(ValueError, "6개"):
+        with self.assertRaisesRegex(ValueError, "파일 목록"):
             events.verify_input_files(self.raw, reference)
 
     def test_cli_rejects_changed_input_even_when_audit_report_matches_it(self):
@@ -274,7 +274,7 @@ class InputValidationTest(unittest.TestCase):
         (reports / "raw-data-audit.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
         scripts = root / "scripts"
         scripts.mkdir()
-        for module in (events, events.base):
+        for module in (events, events.base, events.raw_inputs):
             shutil.copy(module.__file__, scripts)
         cfg = root / "paths.local.toml"
         cfg.write_text('raw_dir="raw"\ncache_dir="cache"\n')

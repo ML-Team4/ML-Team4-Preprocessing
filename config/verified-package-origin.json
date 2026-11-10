@@ -1,0 +1,43 @@
+{
+  "dataset_version": "listenbrainz-8week-v2",
+  "manifest_sha256": "34409454d7e4b47ec6c567c13897233bb00132347f03927821ab26fac062115f",
+  "csv_files": {
+    "items.csv": {
+      "bytes": 135899640,
+      "sha256": "0e05fc0ae0887fe0b8879917efb7966e834b118dce472d23f0db352abd19dbbf"
+    },
+    "test_targets.csv": {
+      "bytes": 2412188,
+      "sha256": "f3c2f924b79e3eab0f38a629ded1695e215e4409bb8269abff1d53313be41c8c"
+    },
+    "test_users.csv": {
+      "bytes": 18363,
+      "sha256": "68f50fd2bd90a5aaea36e8636b5b2b7c1c0742ef38c856334721f00391a6d1fc"
+    },
+    "train_interactions.csv": {
+      "bytes": 38337874,
+      "sha256": "1345f9a81a8ad830973fb40c98701ee33a9e4332c8936fe0001791e715c55f3b"
+    },
+    "users.csv": {
+      "bytes": 56635,
+      "sha256": "1db1e616c57a23a625e2597ce49dc4a9e65020fecffd3ee5865b476a53d6dd5f"
+    },
+    "validation_targets.csv": {
+      "bytes": 2315816,
+      "sha256": "558ee9d9a7e58a22c258e19c82acb447444473cd2b0daf00e100c500ee5ff114"
+    },
+    "validation_users.csv": {
+      "bytes": 18714,
+      "sha256": "9fd83aa168b3447335abdf91a8ce8c647a18396652fb447c6db9b37ff07b5d72"
+    }
+  },
+  "provenance": {
+    "report": "reports/csv-dataset-validation.md",
+    "validator": "scripts/validate_dataset.py",
+    "description": "변환 전 원본 전체와 독립 대조를 통과한 패키지의 고정 기준. 배포 CSV를 변경하지 않았는지 확인한다."
+  },
+  "readme": {
+    "bytes": 4856,
+    "sha256": "700933e2e82ed67fe09225cf48a679625b61101583eae525519886295529dcfd"
+  }
+}

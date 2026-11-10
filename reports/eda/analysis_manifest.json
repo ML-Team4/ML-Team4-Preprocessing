@@ -1,5 +1,5 @@
 {
-  "dataset_version": "listenbrainz-8week-v2",
+  "dataset_version": "listenbrainz-preprocessing",
   "contract_version": "2.0.0",
   "rules_version": "1.0.0",
   "scope": "원본 대조 성공 패키지 고정 기준·CSV 전체 수치 열·기존 검증 표 대조; 원본 사건은 재처리하지 않음",
@@ -39,12 +39,12 @@
         "sha256": "75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea"
       },
       "README.md": {
-        "bytes": 4856,
-        "sha256": "700933e2e82ed67fe09225cf48a679625b61101583eae525519886295529dcfd"
+        "bytes": 1974,
+        "sha256": "77f39c8545889cb4de1eb5e4af06021f7911f4be0da130657d980d10f0b39e97"
       },
       "dataset_manifest.json": {
-        "bytes": 13689,
-        "sha256": "34409454d7e4b47ec6c567c13897233bb00132347f03927821ab26fac062115f"
+        "bytes": 14602,
+        "sha256": "52c9d3f31b0454da41297c4f7105331067b1475fd3cd399248bbb4622e53d2e3"
       },
       "items.csv": {
         "bytes": 135899640,
@@ -113,28 +113,28 @@
   },
   "source_fingerprints": {
     "reports/csv-dataset-validation.md": {
-      "bytes": 3246,
-      "sha256": "ee107a5c263023e31c7d20ac5373250ac09a386a568c523afb6365f545e9fff8"
+      "bytes": 5139,
+      "sha256": "494af9d1b41fd763373b6f9f4d76ef620845826dfabee4e7e07c7f5e5c6d52be"
     },
     "reports/temporal-split-review.md": {
-      "bytes": 14768,
-      "sha256": "eddf59f6284d5528b9efc9f7b687e91268cbdda8bb039a3298eec1d738a5e3a7"
+      "bytes": 14659,
+      "sha256": "7a36a024a9cb603cfb8e65ab074324b913298b8d681e22bef67ac7f9cdf3a265"
     },
     "reports/model-readiness-review.md": {
-      "bytes": 21107,
-      "sha256": "54d44d8447aceed363999fbca77c51535127670c9943fd4c220bb696df143bf2"
+      "bytes": 19922,
+      "sha256": "53c7d74d571b380343318b2daf4c8e7eb0f2191383f4d8ba5078db054b9f98ac"
     },
     "config/listening-package-reference.json": {
-      "bytes": 1746,
-      "sha256": "375242a5ae46f21574603926e6935eb4d29fb03eb6004f95d62925b843183717"
+      "bytes": 1703,
+      "sha256": "b261c4b024a0583b6708c7db428d1e9359126c3cbb2ffa5b6c91b89f988332b0"
     },
     "scripts/analyze_listening.py": {
-      "bytes": 30829,
-      "sha256": "b6aa2f2e6b26ab16c5e29b2f5eda129bbb1e5817bf6028e748f08943ff47de84"
+      "bytes": 30880,
+      "sha256": "4c55396e92754a560a701eeb3976077baaf4162f5cb1f9e309ea7a4faa3a313e"
     },
     "scripts/verify_listening_analysis.py": {
-      "bytes": 22590,
-      "sha256": "b52375635c7bcce3e8773a6ac0a3ddf30ca49253d79bddd6225340f04a94ee59"
+      "bytes": 22628,
+      "sha256": "088a47b49bed9b98ace70c6ac6aba774969a310d590f202e294741e10c2476d4"
     },
     "requirements.txt": {
       "bytes": 262,
@@ -144,7 +144,7 @@
   "figure_specifications": {
     "popularity-shares.png": {
       "table": "popularity_bands.csv",
-      "version": "listenbrainz-8week-v2",
+      "version": "listenbrainz-preprocessing",
       "track_share_pct": [
         78.97141320848128,
         10.41760518817971,
@@ -161,7 +161,7 @@
     },
     "user-training-tracks.png": {
       "table": "user_history_histogram.csv",
-      "version": "listenbrainz-8week-v2",
+      "version": "listenbrainz-preprocessing",
       "users": [
         0,
         568,
@@ -192,56 +192,56 @@
   },
   "output_files": {
     "figures/popularity-shares.png": {
-      "bytes": 105125,
-      "sha256": "ae99c1daa15f264634f683a5120f2ae4ce5a7005bb9aff46c4838af30d2db2d4"
+      "bytes": 105727,
+      "sha256": "6f1a77c3ff891e12996f848e309871d84b75c291f7d3d9690a9af5c7a662a5cd"
     },
     "figures/user-training-tracks.png": {
-      "bytes": 111883,
-      "sha256": "de2478140fb960051acfb2d92805ba6e7f52b16f422ff728e120e451dae4f05b"
+      "bytes": 112249,
+      "sha256": "553467aae20e044e97fcc39befe2269c7036659f48777b6d33082a91c45652b0"
     },
     "tables/dataset_summary.csv": {
-      "bytes": 209,
-      "sha256": "2fc111816cbdde55ecb90de87b47107a2f0d68587b33596f86d76450ddc64bae"
+      "bytes": 214,
+      "sha256": "c8869826a56cc19603271ce6ad8772ca791d137030d39bc80e1a0a3e815e7e70"
     },
     "tables/deduplication_impact.csv": {
-      "bytes": 312,
-      "sha256": "aa58d9b4eee27fe1d448fb7e76309e5b259ffb7919c2e47c49843950d4b0b6a2"
+      "bytes": 327,
+      "sha256": "e7b83c44ab21553428e953c51fa3e76205589af9a993f15698db79ff48ad0cba"
     },
     "tables/evaluation_pair_accounting.csv": {
-      "bytes": 1009,
-      "sha256": "b86267ade2f7aaba01238ed3835387083aa7da624c0398e73b3216a5b6e0359e"
+      "bytes": 1049,
+      "sha256": "88bb168123b36a6cf1365eccc4150bf4c85fd10fec8e1babfb5ae1edd1cdd21d"
     },
     "tables/evaluation_users.csv": {
-      "bytes": 652,
-      "sha256": "07e68ddd53def70a894b9dd84ca7968661ba2cf08217b807f048d056a49e6479"
+      "bytes": 702,
+      "sha256": "785eff2636133750796a0882cb7c02bf8efb3caa27a035f5606bb5916d554e4d"
     },
     "tables/normalization_impact.csv": {
-      "bytes": 260,
-      "sha256": "b7ce234fa666aa3666f27f88c478158b6fcdbe395fa6ef71a83697d20f695fec"
+      "bytes": 275,
+      "sha256": "65a916fc5cf435447278288b6ca9f1d77ed94fc0eb15581edaccdbb738a5b8a5"
     },
     "tables/period_activity.csv": {
-      "bytes": 539,
-      "sha256": "2877714fe7172b341d11bd69cbf6b47e37c13e096d68851df21519051adc2c7c"
+      "bytes": 554,
+      "sha256": "592f24af6ba4f6f0f873128f3f43de3af908a321b546c6920e5e0c4a042e7519"
     },
     "tables/popularity_bands.csv": {
-      "bytes": 431,
-      "sha256": "daeb3a4799c2857d5deb93e9444554d83bcb91a4adb7651064e83ea479acff37"
+      "bytes": 446,
+      "sha256": "fc8551e37e3f3ba18b9d02a8d1bad83e47bd17a153b5e429d9501f29adf097e0"
     },
     "tables/target_count_bands.csv": {
-      "bytes": 701,
-      "sha256": "890ab20ed9a3cd83bd0d1bbc6a6be4a2c92b88faa8a077b09bf5d5bb2bae5d7e"
+      "bytes": 751,
+      "sha256": "ab68f67d9eaa75e96188da561583058cc7d884d8d282268b54bbca8f95955633"
     },
     "tables/target_summary.csv": {
-      "bytes": 331,
-      "sha256": "1c4f3c52b3d88e2b0de3c3fb80a06368fd5990c45b100f79b8b3d56f2b184a24"
+      "bytes": 341,
+      "sha256": "d01122b4c5120d3ebebb3d3659ffe10d1b011b6bb3be5efbe7a3663220e93602"
     },
     "tables/user_history_histogram.csv": {
-      "bytes": 599,
-      "sha256": "0a05ab05172d059a18a204026a696c335c1c16c07559e634f4d7ba84a3350787"
+      "bytes": 649,
+      "sha256": "33d2c508cb674788eda314f9760816a2cf1d652fd861661470f87d67c5adc618"
     },
     "tables/user_summary.csv": {
-      "bytes": 372,
-      "sha256": "594042d15a03a87092647d62da9a914146476f8af2a86f0a8e0cbbc6d08e9b5d"
+      "bytes": 382,
+      "sha256": "9e82eea9f15abe8777b4f9eba9f659adc1db031b84c136b6de3284e58eabbba5"
     }
   },
   "table_schemas": {

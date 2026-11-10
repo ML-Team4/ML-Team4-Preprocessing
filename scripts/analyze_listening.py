@@ -15,7 +15,7 @@ from build_dataset import read_csv_batches
 from validate_dataset import SCHEMAS
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "listenbrainz-8week-v2"
+VERSION = "listenbrainz-preprocessing"
 PERIODS = ("validation", "test")
 BOUNDS = ("2026-08-17 00:00:00", "2026-09-28 00:00:00",
           "2026-10-05 00:00:00", "2026-10-12 00:00:00")
@@ -100,7 +100,7 @@ def load_package(package: Path) -> tuple[dict, dict, dict]:
     """BOM·자료형·순서·전체 파일 무결성을 검사하고 수치 열만 보관한다."""
     manifest = check_package_reference(package)
     require(manifest["dataset_version"] == VERSION and manifest["contract_version"] == "2.0.0"
-            and manifest["rules_version"] == "1.0.0", "CSV v2의 데이터·계약·규칙 버전이 다릅니다")
+            and manifest["rules_version"] == "1.0.0", "공통 CSV의 데이터·계약·규칙 버전이 다릅니다")
     schemas = {name: (fields, order) for name, (fields, order) in SCHEMAS.items()}
     schemas.update({f"{p}_users": ([("user_idx", pa.int32())], ["user_idx"]) for p in PERIODS})
     expected_files = {f"{name}.csv" for name in schemas} | {"README.md", "COPYING"}
@@ -453,7 +453,7 @@ def analyze(package: Path, output: Path) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--package", type=Path, required=True, help="읽기 전용 CSV v2 패키지")
+    parser.add_argument("--package", type=Path, default=Path("datasets/listenbrainz-preprocessing"), help="읽기 전용 공통 CSV 패키지")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "reports/eda", help="집계표·그림·내부 검사 기록 저장 위치")
     args = parser.parse_args()
     result = analyze(args.package, args.output_dir)

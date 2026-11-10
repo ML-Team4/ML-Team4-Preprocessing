@@ -2,7 +2,7 @@
 
 2026-11-10 · ListenBrainz 8주 전달본
 
-과거 청취 기록만 확보한 시점에 기존 사용자에게 훈련 중 듣지 않은 곡을 추천하는 설정이다. 원본 9,350,628행을 기존 CLI로 처리했고, 독립 쿼리로 만든 기간별 사건 키 집합과 양방향으로 일치했다. 이 문서는 [공통 전처리 기준](../docs/preprocessing-plan.md), [데이터 계약](../docs/data-contract.md), [기존 정제·분할 실행 기록](cleaning-split-validation.md)을 근거로 삼는다.
+과거 청취 기록만 확보한 시점에 기존 사용자에게 훈련 중 듣지 않은 곡을 추천하는 설정이다. 원본 9,350,628행을 기존 CLI로 처리했고, 독립 쿼리로 만든 기간별 사건 키 집합과 양방향으로 일치했다. 이 문서는 [공통 전처리 기준](../docs/preprocessing-rules.md), [데이터 계약](../docs/data-contract.md), [기존 정제·분할 실행 기록](cleaning-split-validation.md)을 근거로 삼는다.
 
 ## 입력 식별과 5,000명 표본
 
@@ -12,11 +12,11 @@ MetaBrainz Foundation / ListenBrainz 전체 덤프 2723의 전달본이다. 동�
 
 - **기존 선정 기록.** `md5(str(user_id) + ":42") < "8"`로 해시 하위 절반의 후보를 읽었다. 2026-08-17~09-27 UTC의 과거 규칙으로 정규화한 고유 곡을 10개 이상 들은 20,284명 중 같은 해시의 오름차순 처음 5,000명을 선택했다고 기록되어 있다. 선정에 쓰인 정보는 사용자 ID의 고정 해시와 train 42일 동안의 이름 쌍이다. 이후 14일의 청취는 선정 뒤 해당 사용자에 대한 로그를 담는 데 사용되었다.
 - **직접 확인.** CSV의 5,000행은 사용자 및 표시 ID가 각각 고유하고, Parquet 사용자 집합과 양방향 차이가 0명이다. 전달된 표본 안에서 해시 조건 위반과 `user_index` 순위 불일치는 각각 0명이다. 기존 공백 규칙을 train에 적용한 고유 곡 수는 CSV와 5,000명 모두 일치한다. 현재 공백 규칙에서는 8명의 수가 달라지지만 최소 고유 곡 수는 10이고 5,000명 모두 train 이력이 남는다. 기존 5,000명 전원을 유지했다.
-- 추출 절차와 후보군 규모는 동봉 자료를 근거로 기록했다. 위 직접 대조는 전달된 표본의 순위와 train 이력에 적용했다. [원본 선정 기록](../docs/source-review.md)
+- 추출 절차와 후보군 규모는 동봉 자료를 근거로 기록했다. 위 직접 대조는 전달된 표본의 순위와 train 이력에 적용했다. [원본 출처와 선정 기록](../datasets/raw/source_manifest.json)
 
 ## 정제 규칙별 판단
 
-제외 사유는 `missing_required` → `outside_window` → `empty_name` → `duplicate_excess` 순이다. 최초 조건으로만 제외하고 앞선 세 조건을 통과한 행에서 사건 키별 초과 행을 센다. 이번 입력의 유효 행은 9,350,628행이다. 아래에서 train 유효 행은 중복 전 7,018,319행, 정제 train 사건은 6,623,584건이다.
+제외 사유는 `missing_required` → `outside_window` → `empty_name` → `duplicate_excess` 순이다. 최초 조건으로만 제외하고 앞선 세 조건을 통과한 행에서 사건 키별 초과 행을 센다. 원본의 유효 행은 9,350,628행이다. 아래에서 train 유효 행은 중복 전 7,018,319행, 정제 train 사건은 6,623,584건이다.
 
 | 해결하려는 문제 | 규칙과 선택 이유 | 실제 전후 변화·분모 | 잃을 수 있는 정보 | 판단 |
 | --- | --- | --- | --- | --- |
@@ -30,7 +30,7 @@ MetaBrainz Foundation / ListenBrainz 전체 덤프 2723의 전달본이다. 동�
 | 고활동 사용자·동시각 다곡 | 활동량과 동시각 곡 수를 관측 신호로 집계한다. 재생 길이와 수집 경로 정보가 없어 활동량만으로 삭제할 근거가 없다. | 활동이 관측된 train 사용자·일 124,135개 중 하루 1,440건 초과 39개(68,615사건), train 사용자 5,000명 중 6명, 최대 2,406건/일. 이 6명의 전체 train 사건 148,179건도 보존. 같은 시각 10곡 이상인 그룹 94개의 2,146사건을 포함해 진단 제외 0건 | 오류성 기록이 있었다면 일부 남을 수 있음 | 유지 |
 | 이름 기호·이상 문자 | 기호와 제어문자 신호를 기록하되 문자열만으로 결측·비음악을 판단하지 않는다. 표시할 때 필요한 이스케이프는 출력에서 처리한다. | train 1,525,005곡 중 Unicode 문장부호·기호가 키에 있는 곡 680,218개, 6,623,584사건 중 해당 사건 2,349,822건. 별도의 원문 이상 문자 신호 455건과 전체 유효 행 9,350,628개 중 양끝 공백 제거 후 이름이 `?` 또는 `--`인 108행을 확인. 진단 제외 0건 | 오류성 표기가 있었다면 일부 남을 수 있음. 기호를 일괄 삭제하면 실제 이름이나 버전 구분을 잃을 수 있음 | 유지 |
 
-공백 범위와 대표 표시명 선택은 [전처리 계획](../docs/preprocessing-plan.md)을 따른다. 표시명은 train의 보존 사건에서 가장 자주 나온 원문 쌍이며, 동률은 UTF-8 바이트 순으로 해소한다.
+공백 범위와 대표 표시명 선택은 [전처리 계획](../docs/preprocessing-rules.md)을 따른다. 표시명은 train의 보존 사건에서 가장 자주 나온 원문 쌍이며, 동률은 UTF-8 바이트 순으로 해소한다.
 
 ### 같은 유효 train 행에서의 키 변화
 
@@ -92,13 +92,13 @@ NFC, 공백, 필수값 및 중복 판정은 기간과 무관하게 미리 고정
 
 ## 재현 명령
 
-저장소 루트에서 [README](../README.md)의 가상환경과 `config/paths.local.toml`을 준비한다. 설정에서 `raw_dir`은 기존 전달본, `cache_dir`은 원본 밖의 로컬 폴더를 가리킨다.
+[README의 설치 안내](../README.md#모델-담당자용-데이터-사용법)를 따라 의존성을 설치한 뒤 저장소 루트에서 실행한다.
 
 ```bash
-.venv/bin/python scripts/preprocess_events.py --config config/paths.local.toml
-.venv/bin/python scripts/review_temporal_split.py --config config/paths.local.toml
+.venv/bin/python scripts/preprocess_events.py
+.venv/bin/python scripts/review_temporal_split.py
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m pip check
 ```
 
-기존 CLI의 Markdown 사본이 필요하면 원본 밖의 새 임시 경로를 `--report`로 지정한다. 두 명령은 Parquet의 필요한 열을 읽고 중간 관계를 디스크 기반 임시 DB에서 처리한다.
+기존 CLI의 Markdown 사본이 필요하면 원본 밖의 새 임시 경로를 `--report`로 지정한다. 두 명령은 동봉 주별 gzip CSV를 읽고 중간 관계를 디스크 기반 임시 DB에서 처리한다.

@@ -1,0 +1,57 @@
+# 동봉된 주별 CSV와 출처·검증 자료의 고정 무결성 기준. 기존 Parquet 기준과 구분한다.
+
+[files."listens_2026-08-17.csv.gz"]
+bytes = 24835551
+sha256 = "9f2eea33c6b233c46db2ee7f94501b8ec661b9c472d5bd3804be2f64cb57c3b4"
+
+[files."listens_2026-08-24.csv.gz"]
+bytes = 23803638
+sha256 = "4fd834ab77dda9a252a4104da2f0cc6c8bd422075315ce7191f84e4b8df57820"
+
+[files."listens_2026-08-31.csv.gz"]
+bytes = 24699851
+sha256 = "f1004381f2d9e09386714e3b3a764b367e9addfb6201e2e886e5ac979a56422d"
+
+[files."listens_2026-09-07.csv.gz"]
+bytes = 24908576
+sha256 = "8f3b1e79fa264cb1bef9ddf9b5973fd3a15a3c8e2dd8e7fc71fbabd1c03c2eb8"
+
+[files."listens_2026-09-14.csv.gz"]
+bytes = 25153962
+sha256 = "6d11aec3b4bb2e3c6c0ac4a4fc2ed50827da1c67dc4d0f5ad01b4f4a946d4fcf"
+
+[files."listens_2026-09-21.csv.gz"]
+bytes = 25515081
+sha256 = "2f17b97c898301c92d995e46de57c86410c36d18e3aa326d3ffc6a539d3beae7"
+
+[files."listens_2026-09-28.csv.gz"]
+bytes = 24970241
+sha256 = "e42807a8722dead9c59a4a22a99e59c33bed87867fed11144ed606aef33a4884"
+
+[files."listens_2026-10-05.csv.gz"]
+bytes = 24547475
+sha256 = "921a87ca6d37b4b2899152bdcd71b69a5207fdf6afe3b552bbd006ce70feffbe"
+
+[files."README.txt"]
+bytes = 5183
+sha256 = "fd8104ccfd16875bac897640464d7927ffce8c2057016a53cd6b9bf5625d5e7e"
+
+[files."selected_users.csv"]
+bytes = 76347
+sha256 = "6ca4013d636ac7c16aa52ce6fa1e9fa670df1a4aca8eda64ad9f30f45cbe94a5"
+
+[files."source_manifest.json"]
+bytes = 306507
+sha256 = "7e0af4eb5328ab661e66efc7bf9378d74cb8c8e1a377d3792ac93889765ec526"
+
+[files."verified_8week_summary.json"]
+bytes = 7606
+sha256 = "ac897b3ee55bfd6aa2145dfd16c3eb7705604f6cbaa73646cafdc33d980a445f"
+
+[files."COPYING"]
+bytes = 6390
+sha256 = "75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea"
+
+[files."distribution_manifest.json"]
+bytes = 6200
+sha256 = "ed0da8bd461942211afd24cee70a3cf7ffec5dc494df472de4c106d35152dcab"

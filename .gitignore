@@ -42,3 +42,22 @@ config/*.local.*
 !/reports/eda/tables/target_summary.csv
 !/reports/eda/tables/user_history_histogram.csv
 !/reports/eda/tables/user_summary.csv
+# 다운로드본에 동봉할 정확한 배포 경로만 허용한다.
+datasets/*
+!/datasets/raw/
+/datasets/raw/*
+!/datasets/raw/listens_2026-08-17.csv.gz
+!/datasets/raw/listens_2026-08-24.csv.gz
+!/datasets/raw/listens_2026-08-31.csv.gz
+!/datasets/raw/listens_2026-09-07.csv.gz
+!/datasets/raw/listens_2026-09-14.csv.gz
+!/datasets/raw/listens_2026-09-21.csv.gz
+!/datasets/raw/listens_2026-09-28.csv.gz
+!/datasets/raw/listens_2026-10-05.csv.gz
+!/datasets/raw/selected_users.csv
+!/datasets/raw/README.txt
+!/datasets/raw/source_manifest.json
+!/datasets/raw/verified_8week_summary.json
+!/datasets/raw/COPYING
+!/datasets/raw/distribution_manifest.json
+!/datasets/listenbrainz-preprocessing.zip

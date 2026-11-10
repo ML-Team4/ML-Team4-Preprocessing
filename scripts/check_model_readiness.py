@@ -266,7 +266,7 @@ def diagnose(con, baseline, sample_size=5):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config",type=Path,required=True)
+    parser.add_argument("--config",type=Path,default=base.raw_inputs.DEFAULT_CONFIG)
     args=parser.parse_args()
     config_path=args.config.resolve()
     cfg=tomllib.loads(config_path.read_text())
@@ -278,8 +278,10 @@ def main():
     threads=cfg.get("threads",2)
     if not isinstance(sample,int) or not 1<=sample<=20 or not isinstance(threads,int) or not 1<=threads<=4:
         raise ValueError("sample_size 또는 threads가 허용 범위를 벗어났습니다")
-    before={n:base.sha256(paths["raw_dir"]/n) for n in base.REQUIRED_FILES}
-    if cfg.get("expected_sha256") and before[base.REQUIRED_FILES[0]]!=cfg["expected_sha256"]:
+    import preprocess_events as inputs
+    reference = inputs.read_reference(base.raw_inputs.resolve_reference(paths["raw_dir"], inputs.REFERENCE))
+    before = {entry["file"]: entry["sha256"] for entry in inputs.verify_input_files(paths["raw_dir"], reference)}
+    if cfg.get("expected_sha256") and base.REQUIRED_FILES[0] in before and before[base.REQUIRED_FILES[0]]!=cfg["expected_sha256"]:
         raise ValueError("입력 hash가 기준과 다릅니다")
     started=time.monotonic()
     paths["cache_dir"].mkdir(parents=True,exist_ok=True)
@@ -296,7 +298,7 @@ def main():
             result=diagnose(con,baseline,sample)
         finally:
             con.close()
-    after={n:base.sha256(paths["raw_dir"]/n) for n in base.REQUIRED_FILES}
+    after={n:base.sha256(paths["raw_dir"]/n) for n in base.raw_inputs.required_files(paths["raw_dir"])}
     if before!=after:
         raise RuntimeError("점검 중 입력이 변경됐습니다")
     rss=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss

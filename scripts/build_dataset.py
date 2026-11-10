@@ -24,6 +24,7 @@ import scipy
 
 import preprocess_events as common
 from preprocess_events import base
+import raw_inputs
 
 REPO = Path(__file__).resolve().parents[1]
 PACKAGE_README = REPO / "docs/dataset-package-readme.md"
@@ -241,12 +242,18 @@ def build_package(config: Path, output_root: Path, version: str, *,
     output_root = output_root.resolve()
     settings = common.read_settings(config)
     raw = settings["raw_dir"]
+    reference_path = raw_inputs.resolve_reference(raw, reference_path)
     if output_root == raw or raw in output_root.parents:
         raise ValueError("출력 폴더는 raw_dir 밖에 지정해야 합니다")
     if output_root.is_relative_to(REPO):
         relative = output_root.relative_to(REPO).as_posix() + "/"
-        ignored = subprocess.run(["git", "check-ignore", "--no-index", "-q", relative], cwd=REPO)
-        if ignored.returncode != 0:
+        if (REPO / ".git").exists():
+            ignored = subprocess.run(["git", "check-ignore", "--no-index", "-q", relative], cwd=REPO)
+            allowed = ignored.returncode == 0
+        else:
+            # Code → Download ZIP에는 .git이 없다. 기본 재현 출력은 같은 위치에서 허용한다.
+            allowed = relative.startswith(".cache/")
+        if not allowed:
             raise ValueError("저장소 안의 출력 폴더는 Git 제외 경로여야 합니다")
     final = output_root / version
     if os.path.lexists(final):
@@ -274,7 +281,7 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
                          example_variant: str | None) -> None:
     raw = settings["raw_dir"]
     trace = base.git_trace(REPO)
-    code_paths = [Path(__file__), Path(common.__file__), Path(base.__file__), PACKAGE_README,
+    code_paths = [Path(__file__), Path(common.__file__), Path(base.__file__), Path(raw_inputs.__file__), PACKAGE_README,
                   REPO / "requirements.txt"]
     if example_script is not None:
         code_paths.append(example_script)
@@ -372,9 +379,9 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", required=True, type=Path, help="원본과 임시 저장 위치를 지정한 로컬 설정")
-    parser.add_argument("--output-root", required=True, type=Path, help="버전별 폴더를 저장할 Git 제외 경로")
-    parser.add_argument("--version", required=True, help="아직 존재하지 않는 데이터 버전")
+    parser.add_argument("--config", default=raw_inputs.DEFAULT_CONFIG, type=Path, help="원본과 작업 위치 설정")
+    parser.add_argument("--output-root", default=Path(".cache/reproduced"), type=Path, help="새 패키지를 저장할 경로")
+    parser.add_argument("--version", default="listenbrainz-preprocessing", help="아직 존재하지 않는 패키지 폴더명")
     args = parser.parse_args()
     final = build_package(args.config, args.output_root, args.version)
     print(f"CSV 데이터셋 생성 및 재로딩 검증 완료\n{final}")

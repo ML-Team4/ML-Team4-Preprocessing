@@ -1,12 +1,12 @@
 # CSV 학습 데이터의 인기도 분포와 평가 범위
 
-`listenbrainz-8week-v2`의 선정 사용자 5,000명에서 학습곡의 78.97%는 청취자가 한 명이고, 이 곡들이 학습 청취 사건의 33.00%를 차지한다. 서로 다른 사용자의 학습 근거가 부족한 곡이 많으며, 반복 청취량과 고유 청취자 수를 구분해야 한다. 이 보고서는 모델 입력의 분포와 오프라인 평가 범위를 설명한다. 추천 출력과 모델 성능은 측정하지 않았다.
+`listenbrainz-preprocessing`의 선정 사용자 5,000명에서 학습곡의 78.97%는 청취자가 한 명이고, 이 곡들이 학습 청취 사건의 33.00%를 차지한다. 서로 다른 사용자의 학습 근거가 부족한 곡이 많으며, 반복 청취량과 고유 청취자 수를 구분해야 한다. 이 보고서는 모델 입력의 분포와 오프라인 평가 범위를 설명한다. 추천 출력과 모델 성능은 측정하지 않았다.
 
-관련 기록은 [Issue #13](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/13), 이전 범위는 종료된 [Issue #4](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/4)다. 기존 [CSV 생성·원본 대조](csv-dataset-validation.md), [정제 영향·시간 분할 검증](temporal-split-review.md), [모델 적합성 검토](model-readiness-review.md)를 재사용했다.
+분석 근거는 [CSV 생성·원본 대조](csv-dataset-validation.md), [정제 영향·시간 분할 검증](temporal-split-review.md), [모델 적합성 검토](model-readiness-review.md)다.
 
 ## 데이터와 계산 범위
 
-입력은 저장소 옆 `공유 데이터셋/listenbrainz-8week-v2/`의 CSV 7개와 `dataset_manifest.json`이다. 데이터 계약은 `2.0.0`, 정제 규칙은 `1.0.0`이다. 원본 덤프는 ListenBrainz 2723이며, 전달본의 UTC 2026-08-17~10-11 청취를 사용한다. 원본 수집과 정제는 기존 코드·검증 결과를 이어받고 공통 패키지를 수정하지 않았다.
+입력은 저장소의 `datasets/listenbrainz-preprocessing/`의 CSV 7개와 `dataset_manifest.json`이다. 데이터 계약은 `2.0.0`, 정제 규칙은 `1.0.0`이다. 원본 덤프는 ListenBrainz 2723이며, 전달본의 UTC 2026-08-17~10-11 청취를 사용한다. 원본 수집과 정제는 기존 코드·검증 결과를 이어받고 공통 패키지를 수정하지 않았다.
 
 `users.csv`의 `user_id`는 int64, 공통 `user_idx`·`item_idx`와 곡별 `train_listener_count`는 int32, `train_interactions.csv`의 양의 정수 `listen_count`는 int64로 읽는다. 평가 사용자 CSV도 int32로 읽는다. 이름 열은 문자열이며 CSV 파서의 결측 토큰 자동 해석을 끄고 쉼표·따옴표·개행과 실제 `NA`·`NULL` 이름을 보존한다. 입력과 집계 CSV는 모두 헤더가 있는 UTF-8 BOM이다. 집계 정수는 int64, 비율·분위수는 float64로 해석하며 내부 manifest에 열별 스키마를 남겼다.
 
@@ -16,7 +16,7 @@
 
 ## 무결성과 기존 보고서 대조
 
-원본 전체 대조 성공 기록의 데이터 버전·성공 상태·manifest 식별값을 확인하고, 실제 전달본과 일치하는 값을 [저장소 내부 고정 기준](../config/listening-package-reference.json)에 보관했다. 출처 보고서·독립 검증 코드와 연결된 이 기준은 검사 대상에서 매번 생성하지 않으며, 기존 개인 캐시 없이 사용할 수 있다. 분석과 독립 검증 모두 고정 기준을 먼저 적용하므로 CSV의 아티스트명과 자체 manifest를 함께 바꾼 사본은 패키지 식별 불일치로 중단한다. 식별값 자체는 내부 JSON에만 보관한다.
+원본 전체 대조 성공 기록의 데이터 버전·성공 상태·manifest 식별값을 확인하고, 실제 전달본과 일치하는 값을 [저장소 내부 고정 기준](../config/listening-package-reference.json)에 보관했다. 출처 보고서·독립 검증 코드와 연결된 이 기준은 검사 대상에서 매번 생성하지 않으며, 개인 캐시 없이 사용할 수 있다. 분석과 독립 검증 모두 고정 기준을 먼저 적용하므로 CSV의 아티스트명과 자체 manifest를 함께 바꾼 사본은 패키지 식별 불일치로 중단한다. 식별값 자체는 내부 JSON에만 보관한다.
 
 고정 기준과 같은 manifest에 등록된 CSV 7개와 README·COPYING의 무결성을 대조했고, CSV 전체의 헤더·BOM·자료형·행 수·ID 순서·유일성과 좌표 범위를 검사했다. CSV에서 재계산한 곡별 고유 청취자 수는 `items.csv`와 **1,525,005곡 모두 일치**했다. 실행 전후 패키지도 동일했다. 검사 식별 기록은 [내부 manifest](eda/analysis_manifest.json)에 보관한다.
 
@@ -31,7 +31,7 @@
 
 matrix density = `2,739,292 / (5,000 × 1,525,005)` = **0.0003592502**, 백분율로 **0.035925%**다. 기존 적합성 검토의 0.04%는 이를 소수 둘째 자리로 반올림한 값과 같다. 나머지 약 99.964075%의 좌표는 이 학습 구간에서 미관측이다. 이는 싫어한다고 확인한 음성 정답이 아니며, 노출 기회·선호·구간 밖 청취를 구분할 정보가 없다. [원 집계](eda/tables/dataset_summary.csv)
 
-원본 사건·시각을 이번에 다시 생성하지는 않았다. 전달 CSV에는 시각과 제외 사유가 없으므로 기간별 활동·정제 전 수치·평가 제외는 검증된 보고서와 동일 패키지 manifest에서 가져왔다. 원본 전체와 CSV의 독립 대조가 누락·초과 0건이었다는 근거는 [기존 CSV 검증 보고서](csv-dataset-validation.md)다. 이번 검사는 동일 패키지 무결성과 CSV 재집계, 기존 표와의 일치를 확인한다.
+EDA는 전처리 CSV를 입력으로 사용한다. 전달 CSV에는 시각과 제외 사유가 없으므로 기간별 활동·정제 전 수치·평가 제외는 검증된 보고서와 동일 패키지 manifest에서 가져왔다. 원본 전체와 CSV의 독립 대조가 누락·초과 0건이었다는 근거는 [기존 CSV 검증 보고서](csv-dataset-validation.md)다. EDA 검사는 동일 패키지 무결성과 CSV 재집계, 기존 표와의 일치를 확인한다.
 
 ## 곡 수 비중과 청취 사건 비중
 
@@ -82,9 +82,9 @@ NFC와 공백 정리는 같은 표기로 볼 근거가 있는 키를 묶어 일�
 
 같은 사용자·시각·곡의 초과 행을 접어도 첫 사건이 남으므로 고유 청취자 수와 카탈로그는 보존된다. 3명 이상 구간의 제거율이 6.17%로 더 높아 사건 비중에는 차별적인 영향이 있지만, 1명 구간을 삭제한 것은 아니다. 단독 청취자 곡까지 최소 청취자 필터로 지우면 연구 대상 카탈로그의 78.97%가 없어지는 반면, 현재 중복 처리는 그 곡을 남긴다. 같은 시각에 구별되지 않는 실제 반복과 중복 제출을 네 필드만으로 확정할 수는 없다. 전체 56일 제거 537,575행과 train 42일 제거 394,735행의 분모·기간을 혼동하지 않는다. [재사용 표](eda/tables/deduplication_impact.csv)
 
-품질 신호는 [시간 분할 검증](temporal-split-review.md#정제-규칙별-판단)과 [모델 적합성 검토](model-readiness-review.md#새로-확인한-로그-품질-문제와-영향)를 재사용했다. train에서 동시각 10곡 이상은 94개 시각·42명·2,146사건(6,623,584건의 약 0.03%)이며 최대 572곡이다. 활동이 있는 사용자·일 124,135개 중 하루 1,440건 초과는 39개·6명이고 그 활동일에 68,615사건이 있다. 이런 신호의 원인은 재생 길이·수집 경로 없이 확정하기 어렵다. 플래그 제외 분석은 추가하지 않았고 공통 패키지에서 이 신호로 제외한 사건은 0건이다.
+품질 신호는 [시간 분할 검증](temporal-split-review.md#정제-규칙별-판단)과 [모델 적합성 검토](model-readiness-review.md#로그-품질-신호와-영향)를 재사용했다. train에서 동시각 10곡 이상은 94개 시각·42명·2,146사건(6,623,584건의 약 0.03%)이며 최대 572곡이다. 활동이 있는 사용자·일 124,135개 중 하루 1,440건 초과는 39개·6명이고 그 활동일에 68,615사건이 있다. 이런 신호의 원인은 재생 길이·수집 경로 없이 확정하기 어렵다. 플래그 제외 분석은 추가하지 않았고 공통 패키지에서 이 신호로 제외한 사건은 0건이다.
 
-이전 학습 연결 분석에서 4,959명(5,000명의 99.18%)은 큰 connected component에 속하고 39명은 고립됐다. 연결된 사용자쌍의 공통곡 중앙값은 2곡이며 그중 39.53%는 공통곡이 한 곡뿐이었다. 이번에는 연결 그래프를 재계산하지 않았으며 동일 train 집계의 [기존 분석](model-readiness-review.md#학습에-충분한-정보가-있는가)을 근거로 해석한다. 큰 연결망의 존재만으로 사용자 간 강한 유사성을 보장하지 않는다. 같은 사용자 한 명만 들은 곡들은 cosine similarity가 1인 동률이 될 수 있고, MF에도 곡별 차이를 배울 독립적인 사용자 근거가 부족하다. 이 한계는 저인기 곡의 보존 필요성과 함께 모델의 동률 처리·추천 범위 평가에서 다룬다.
+이전 학습 연결 분석에서 4,959명(5,000명의 99.18%)은 큰 connected component에 속하고 39명은 고립됐다. 연결된 사용자쌍의 공통곡 중앙값은 2곡이며 그중 39.53%는 공통곡이 한 곡뿐이었다. 연결 그래프 수치는 동일 train 집계의 [기존 분석](model-readiness-review.md#학습에-충분한-정보가-있는가)을 근거로 해석한다. 큰 연결망의 존재만으로 사용자 간 강한 유사성을 보장하지 않는다. 같은 사용자 한 명만 들은 곡들은 cosine similarity가 1인 동률이 될 수 있고, MF에도 곡별 차이를 배울 독립적인 사용자 근거가 부족하다. 이 한계는 저인기 곡의 보존 필요성과 함께 모델의 동률 처리·추천 범위 평가에서 다룬다.
 
 ## 기간별 활동과 일평균
 
@@ -153,18 +153,18 @@ test의 신규곡 사건 비율은 validation보다 높고 train 기청취 사�
 
 ## 재현과 검증
 
-저장소 루트에서 다음 명령을 실행한다. 원본 Parquet·개인 경로 설정·기존 개인 캐시 없이 CSV 전달본과 저장소의 고정 기준·기존 보고서로 EDA를 재현할 수 있다. 기본 출력은 이 보고서가 연결하는 `reports/eda/`이며 집계표·그림·내부 manifest를 다시 쓴다. 기존 결과를 유지하며 비교하려면 새 출력 위치를 지정한다. 이 한국어 해석 문서는 자동으로 덮어쓰지 않는다.
+저장소 루트에서 다음 명령을 실행한다. 원본 Parquet·개인 경로 설정·개인 캐시 없이 CSV 전달본과 저장소의 고정 기준·기존 보고서로 EDA를 재현할 수 있다. 기본 출력은 이 보고서가 연결하는 `reports/eda/`이며 집계표·그림·내부 manifest를 다시 쓴다. 기존 결과를 유지하며 비교하려면 새 출력 위치를 지정한다. 이 한국어 해석 문서는 자동으로 덮어쓰지 않는다.
 
 ```bash
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python scripts/analyze_listening.py \
-  --package "../공유 데이터셋/listenbrainz-8week-v2" \
+  --package "datasets/listenbrainz-preprocessing" \
   --output-dir .cache/eda-recheck
 .venv/bin/python scripts/verify_listening_analysis.py \
-  --package "../공유 데이터셋/listenbrainz-8week-v2" \
+  --package "datasets/listenbrainz-preprocessing" \
   --output-dir .cache/eda-recheck --reproduce
 .venv/bin/python scripts/verify_listening_analysis.py \
-  --package "../공유 데이터셋/listenbrainz-8week-v2" \
+  --package "datasets/listenbrainz-preprocessing" \
   --output-dir reports/eda --reproduce
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m pip check
@@ -181,8 +181,8 @@ git diff --check
 
 분석 산출물을 갱신하면 별도 검증 기록은 `not_run`으로 바뀐다. 검증을 시작하면 `checking`, 실패하면 `failed`·`matches: false`와 오류 원인을 기록한다. 실패 시 불일치 총수를 확정하지 못했으므로 `mismatches`는 null로 남긴다. 성공 기록은 검사한 분석 manifest에 연결한다. 이전 성공을 최신 결과의 검증으로 오인하지 않도록 한 처리다.
 
-PyArrow는 명시한 자료형의 CSV 배치 로딩과 문자열 보존, NumPy는 열 단위 정수 집계·분위수, Matplotlib은 저장된 집계 CSV에서 영어 제목·축·범례의 그림 생성에 사용한다. 기존 생성기의 CSV 로더와 검증 스키마를 재사용한다. DuckDB는 별도 SQL 대조에 사용하며 SciPy는 기존 검증 모듈·패키지 회귀 검사에 필요하다. 설치 조건과 의존성 고정은 [README](../README.md#설치와-경로-설정)와 [requirements.txt](../requirements.txt)를 따른다. [분석 코드](../scripts/analyze_listening.py) · [산출물 검증 코드](../scripts/verify_listening_analysis.py) · [의미 검증 테스트](../tests/test_analyze_listening.py)
+PyArrow는 명시한 자료형의 CSV 배치 로딩과 문자열 보존, NumPy는 열 단위 정수 집계·분위수, Matplotlib은 저장된 집계 CSV에서 영어 제목·축·범례의 그림 생성에 사용한다. 기존 생성기의 CSV 로더와 검증 스키마를 재사용한다. DuckDB는 별도 SQL 대조에 사용하며 SciPy는 기존 검증 모듈·패키지 회귀 검사에 필요하다. 설치 조건과 의존성 고정은 [README](../README.md#모델-담당자용-데이터-사용법)와 [requirements.txt](../requirements.txt)를 따른다. [분석 코드](../scripts/analyze_listening.py) · [산출물 검증 코드](../scripts/verify_listening_analysis.py) · [의미 검증 테스트](../tests/test_analyze_listening.py)
 
-로컬 검증 결과: CSV 전체 집계·manifest 대조, 집계표 BOM·왕복 로딩·구간 합계, 그림 수치·분모·버전 대조와 육안 확인을 통과했다. 반복 사건 분모·3명 이상 구간·큰 정수 횟수 보존·고유 청취자 수 변조·미래 정답 변경의 train 불변성·평가 기청취곡·평가 사용자 불일치·무결성 및 BOM 훼손·구간 경계·합계를 유지한 제외 사유 모순·실패 및 재생성 후 검증 기록 상태를 포함한 회귀 테스트 42개가 통과했다. DuckDB의 별도 학습 집계·분위수·사용자 구간과 생성표·그림 명세·인기도·기간 활동·모든 평가 표의 불일치는 0건이다. 빈 출력 폴더의 실제 v2 분석·독립 검증과 게시할 `reports/eda/`의 `--reproduce`에서 집계 CSV 11개·그림 2개·분석 manifest가 모두 일치했다. CSV·자체 manifest 동시 변조, 169→999 변경과 평가 표의 수치·단위·비율 170개 변경, 범주·기간·분모 오류와 산출물 누락·초과도 임시 사본에서 각각 해당 이유로 거부했다. 정상 보고서와 행 순서 변경은 통과했다. 두 PNG를 직접 열어 영어 제목·축·범례 또는 구간 표기·단위·분모·버전·표시 수치와 잘림 없음을 확인했다. 의존성 검사와 신규 파일까지 포함한 변경 형식 검사도 통과했다. [검증 기록](eda/verification.json)
+DuckDB의 독립 학습 집계·분위수·사용자 구간, 인기도·기간 활동·평가 표의 불일치는 0건이다. 공통 CSV의 독립 재현에서 집계 CSV 11개·그림 2개·분석 manifest가 일치했다. 회귀 테스트는 CSV와 자체 manifest의 동시 변조, 평가 표 수치·단위·분모 오류, 산출물 누락·초과를 검사한다. [검증 기록](eda/verification.json)
 
 최종 저인기 평가 기준과 모델의 동률·confidence·인기 보정 설정, 추천 결과의 정확도·편향 완화 검증은 후속 모델링·평가 과제다. 원래 표본과 이름 키·관측 로그의 한계도 남는다. 공통 데이터 재정제, 사용자 재선정, 신규곡을 포함한 평가 설계 변경은 수행하지 않았다.

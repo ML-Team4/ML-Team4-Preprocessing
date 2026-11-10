@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
+import raw_inputs
 
 WINDOW_START = "2026-08-17 00:00:00"
 TRAIN_END = "2026-09-28 00:00:00"
@@ -32,10 +33,7 @@ WHITESPACE = tuple(range(0x09, 0x0E)) + tuple(range(0x1C, 0x21)) + (
     0x202F, 0x205F, 0x3000,
 )
 SPACE_PATTERN = "[" + "".join(r"\x{" + f"{c:X}" + "}" for c in WHITESPACE) + "]+"
-REQUIRED_FILES = (
-    "listens_8weeks_5000users.parquet", "README.txt", "selected_users.csv",
-    "source_manifest.json", "verified_8week_summary.json", "COPYING",
-)
+REQUIRED_FILES = raw_inputs.LEGACY_FILES
 
 
 def sha256(path: Path) -> str:
@@ -66,6 +64,8 @@ def install_normalizer(con) -> None:
 
 def git_trace(repo: Path) -> dict:
     def run(*args):
+        if not (repo / ".git").exists():
+            return None
         result = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
         return result.stdout.strip() if result.returncode == 0 else None
     return {"head": run("rev-parse", "--verify", "HEAD"),
@@ -77,7 +77,7 @@ def git_trace(repo: Path) -> dict:
 def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
     """집계·샘플만 반환한다. 외부 경로/원본 user_id는 결과에 내보내지 않는다."""
     log("[audit] schema·기간·결측값 점검", flush=True)
-    con.read_parquet(str(raw_dir / REQUIRED_FILES[0])).create_view("raw")
+    raw_inputs.bind_raw(con, raw_dir, "raw")
     schema = rows(con, "DESCRIBE raw")
     expected = [("user_id", "BIGINT"), ("listened_at", "TIMESTAMP"),
                 ("artist_name", "VARCHAR"), ("recording_name", "VARCHAR")]
@@ -297,9 +297,9 @@ def render_report(result: dict) -> str:
         return "| " + " | ".join(keys) + " |\n| " + " | ".join("---" for _ in keys) + " |\n" + "\n".join(
             "| " + " | ".join(cell(r.get(k)) for k in keys) + " |" for r in records) + "\n"
     lines = ["# 원본 데이터 점검 결과\n",
-        "이 문서는 `scripts/audit_raw_data.py`의 실제 실행 결과다. 정규화·중복 제거 결과는 임시 진단 집계이며 최종 전처리 전달본은 아직 생성하지 않았다. 모든 날짜는 UTC다.\n",
+        "이 문서는 `scripts/audit_raw_data.py`의 실제 실행 결과다. 원본 통계와 고정 규칙을 적용한 진단 집계를 기록한다. 모든 날짜는 UTC다.\n",
         "## 검증 범위와 근거\n",
-        "Parquet 전체를 읽어 스키마·통계·해시를 검사했다. 함께 제공된 여섯 파일의 해시를 실행 전후 대조했다. 이름 정규화는 NFC와 고정된 유니코드 공백 29종의 축약이다. 결측·빈 이름·범위 밖 행을 진단 집계에서 분리하고 동일 사용자·시각·정규화 튜플은 한 건으로 집계했다. 원본은 수정하지 않았다.\n",
+        "원본 전체를 읽어 스키마·통계와 입력 파일의 실행 전후 무결성을 검사했다. 이름 정규화는 NFC와 고정된 유니코드 공백 29종의 축약이다. 결측·빈 이름·범위 밖 행을 진단 집계에서 분리하고 동일 사용자·시각·정규화 튜플은 한 건으로 집계했다. 원본은 수정하지 않았다.\n",
         "부속 README·source_manifest·기존 검증 JSON의 추출 방법 및 공식 덤프 규모는 **기존 설명에 기록된 사실**이다. 원본 TAR, 20,284명 전체 후보군, 표본의 상위 5,000명 선정 순위는 다시 검증하지 않았다. 로컬 CSV와 현재 학습 이력의 일치 여부만 직접 검증했다. TIMESTAMP에는 시간대가 내장되어 있지 않아 UTC 해석은 부속 자료의 명세를 따른다.\n"]
     for title,key in [("컬럼과 실제 자료형","schema"),("원본 전체 통계","raw"),("결측 수","nulls"),
                       ("빈 문자열과 이름 정규화 영향","strings"),("선정 사용자 CSV 대조","cohort"),
@@ -320,15 +320,15 @@ def render_report(result: dict) -> str:
         "과거 규칙은 `NFC(regexp_replace(trim(s), '\\s+', ' ', 'g'))`이며 로컬 기존 분석 스크립트에서 확인했다. 이를 같은 파일에 재적용한 수치와 현재 규칙을 위에서 대조한다. RE2의 `\\s`가 정리하지 않는 유니코드 공백과 trim 적용 순서의 차이가 있으므로 CSV의 train_unique_tracks를 새 규칙의 기대값으로 강제하지 않는다. 사용자 선정 순서는 유지한다.\n",
         "동일 사용자·동일 시각·동일 정규화 튜플의 초과 행만 중복 제거 대상으로 삼는다. 다른 시각의 반복은 실제 선호 신호일 수 있어 보존한다. 대소문자 차이나 라이브·리믹스·리마스터 표기는 의미가 다를 수 있어 자동 병합하지 않는다.\n",
         "과도한 청취량과 podcast·audiobook 등의 문자열은 검토 신호일 뿐이다. 네 컬럼만으로 재생 길이, 실제 사람의 청취, 음악 여부를 판정할 수 없으므로 해당 신호로 자동 삭제하지 않는다. 동명 곡의 오병합과 표기 차이의 과분리는 남는다.\n",
-        "여기서 재산출된 수치가 과거 검증 수치와 같더라도 최종 전달본 통계는 아니다. 최종 해시·ID·sparse matrix·제외 사유별 산출물 검증은 패키지 생성 시 수행한다. source_manifest의 공식 TAR 전체 해시를 검증한 것이 아니다.\n",
+        "모델 입력의 ID·청취 횟수·제외 사유·평가 정답은 패키지 생성과 독립 검증에서 대조한다. source_manifest는 공식 TAR의 출처를 기록한다.\n",
         "## 진단 일별 규모\n",table(result["daily"]),
-        "규칙과 전달 규격은 `docs/preprocessing-plan.md`, `docs/data-contract.md`를 따른다. 원본 사용자 식별자는 보고서에 싣지 않았다.\n"])
+        "규칙과 전달 규격은 `docs/preprocessing-rules.md`, `docs/data-contract.md`를 따른다. 원본 사용자 식별자는 보고서에 싣지 않았다.\n"])
     return "\n".join(lines)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config",type=Path,required=True,help="로컬 TOML 설정 경로")
+    parser.add_argument("--config",type=Path,default=raw_inputs.DEFAULT_CONFIG,help="원본과 작업 위치 설정")
     args = parser.parse_args()
     config_path = args.config.resolve()
     config = tomllib.loads(config_path.read_text(encoding="utf-8"))
@@ -346,9 +346,11 @@ def main() -> None:
     if not isinstance(threads,int) or not 1 <= threads <= 4:
         raise ValueError("threads는 1부터 4 사이여야 합니다")
     started = time.monotonic()
-    before = {name:sha256(raw_dir/name) for name in REQUIRED_FILES}
+    import preprocess_events as inputs
+    reference = inputs.read_reference(raw_inputs.resolve_reference(raw_dir, inputs.REFERENCE))
+    before = {entry["file"]: entry["sha256"] for entry in inputs.verify_input_files(raw_dir, reference)}
     expected_hash = config.get("expected_sha256")
-    if expected_hash and before[REQUIRED_FILES[0]] != expected_hash:
+    if expected_hash and REQUIRED_FILES[0] in before and before[REQUIRED_FILES[0]] != expected_hash:
         raise ValueError("원본 Parquet SHA256이 기준과 다릅니다")
     cache_dir.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="audit-",dir=cache_dir) as work:
@@ -363,7 +365,7 @@ def main() -> None:
             result = audit(con,raw_dir,sample_size)
         finally:
             con.close()
-    after = {name:sha256(raw_dir/name) for name in REQUIRED_FILES}
+    after = {name:sha256(raw_dir/name) for name in raw_inputs.required_files(raw_dir)}
     if before != after:
         raise RuntimeError("점검 중 입력 파일이 변경돼 보고서 생성을 중단했습니다")
     result["input_files"] = [{"file":name,"bytes":(raw_dir/name).stat().st_size,

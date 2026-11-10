@@ -14,6 +14,7 @@ import pyarrow.parquet as pq
 from scipy import sparse
 
 import preprocess_events as inputs
+import raw_inputs
 from audit_raw_data import WHITESPACE, one, sha256
 from review_temporal_split import EVENT_KEY, TRACK_KEY, build_reference
 
@@ -31,9 +32,9 @@ SCHEMAS = {
 }
 
 
-def build_expected_train(con, parquet: Path) -> tuple[list[dict], dict, dict]:
+def build_expected_train(con, raw: Path) -> tuple[list[dict], dict, dict]:
     """정제 사건에서 기간별 집계와 정렬된 공통 ID의 기대값을 산출한다."""
-    build_reference(con, parquet)
+    build_reference(con, raw)
     con.execute("""CREATE VIEW expected_events AS SELECT e.*, p.period FROM review_events e
         JOIN review_periods p ON e.listened_at >= p.start_utc AND e.listened_at < p.end_utc""")
     partitions = []
@@ -367,10 +368,20 @@ def verify_manifest_metadata(manifest: dict, raw: Path, reference_path: Path) ->
                    for value in hashes.values())):
         raise ValueError("실행 코드·설정 SHA256의 필수 항목 또는 형식이 다릅니다")
     # 다른 환경에서의 재검증도 허용한다. 과거 실행 코드와 설정은 기록된 지문으로 추적한다.
-    require_metadata(hashes, {
-        "input_reference": sha256(reference_path),
-        "docs/dataset-package-readme.md": manifest["files"]["README.md"]["sha256"],
-    }, "source_and_config_sha256")
+    require_metadata(hashes, {"input_reference": sha256(reference_path)}, "source_and_config_sha256")
+    readme_digest = manifest["files"]["README.md"]["sha256"]
+    if "distribution" in manifest:
+        origin_path = inputs.REFERENCE.with_name("verified-package-origin.json")
+        origin = json.loads(origin_path.read_text(encoding="utf-8"))
+        require_metadata(manifest["distribution"], {
+            "original_manifest_sha256": origin["manifest_sha256"],
+            "readme_sha256": readme_digest,
+        }, "distribution")
+        require_metadata(hashes, {"docs/dataset-package-readme.md": origin["readme"]["sha256"]},
+                         "source_and_config_sha256")
+    else:
+        require_metadata(hashes, {"docs/dataset-package-readme.md": readme_digest},
+                         "source_and_config_sha256")
 
 
 def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None = None,
@@ -378,13 +389,28 @@ def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None
     package = package.resolve()
     settings = inputs.read_settings(config)
     raw = settings["raw_dir"]
+    reference_path = raw_inputs.resolve_reference(raw, reference_path)
     original = inputs.verify_input_files(raw, inputs.read_reference(reference_path))
     manifest_path = package / "dataset_manifest.json"
     manifest_digest = sha256(manifest_path)
     if manifest_sha256 is not None and manifest_sha256 != manifest_digest:
         raise ValueError("manifest의 SHA256이 전달받은 값과 다릅니다")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if (manifest["dataset_version"] != package.name or manifest["input_files"] != original
+    metadata_reference = reference_path
+    recorded_inputs = manifest["input_files"]
+    equivalent_csv = False
+    if raw_inputs.is_csv(raw) and recorded_inputs != original:
+        # 배포 패키지는 최초 생성의 Parquet 계보를 보존한다. 고정 CSV 기준으로 검증한
+        # 변환 증거가 같은 원본 6개와 중복 포함 완전 동일성을 가리킬 때만 허용한다.
+        conversion = json.loads((raw / "distribution_manifest.json").read_text(encoding="utf-8"))
+        legacy = inputs.read_reference(inputs.REFERENCE)
+        trusted_original = [{"file": name, **legacy[name]} for name in inputs.base.REQUIRED_FILES]
+        equivalent_csv = (recorded_inputs == conversion["original_files"] == trusted_original
+            and conversion["multiset_comparison"] == {"missing_rows": 0, "extra_rows": 0, "matches": True}
+            and conversion["original"] == conversion["converted"])
+        if equivalent_csv:
+            metadata_reference = inputs.REFERENCE
+    if (manifest["dataset_version"] != package.name or (recorded_inputs != original and not equivalent_csv)
             or manifest["contract_version"] not in ("1.0.0", "2.0.0")
             or manifest["rules_version"] != "1.0.0"):
         raise ValueError("manifest의 데이터 버전·입력·계약·규칙이 다릅니다")
@@ -393,17 +419,14 @@ def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None
     extension = "csv" if csv_package else "parquet"
     read_table = read_csv if csv_package else read_parquet
     before = package_fingerprints(package, manifest)
-    verify_manifest_metadata(manifest, raw, reference_path)
+    verify_manifest_metadata(manifest, raw, metadata_reference)
     copying = next(entry for entry in original if entry["file"] == "COPYING")
     if before["COPYING"] != {key: copying[key] for key in ("bytes", "sha256")}:
         raise ValueError("패키지 COPYING이 원본과 다릅니다")
     (package / "README.md").read_text(encoding="utf-8")
-    parquet = raw / "listens_8weeks_5000users.parquet"
-    if pq.read_schema(parquet).field("listened_at").type != pa.timestamp("us"):
-        raise ValueError("원본 시각의 정밀도 또는 시간대 표기가 고정 스키마와 다릅니다")
     with inputs.working_connection(settings) as con:
         input_validation = inputs.validate_input_tables(con, raw, expected_users)
-        partitions, exclusions, train = build_expected_train(con, parquet)
+        partitions, exclusions, train = build_expected_train(con, raw)
         require_metadata(manifest["mapping"], {
             "start": 0, "dtype": "int32", "users": train["users"], "items": train["items"],
             "user_id_order": "숫자 오름차순", "item_key_order": "UTF-8 byte tuple 오름차순",
@@ -465,8 +488,8 @@ def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, required=True, help="원본과 임시 저장 위치를 지정한 로컬 설정")
-    parser.add_argument("--package", type=Path, required=True, help="검증할 버전별 패키지 폴더")
+    parser.add_argument("--config", type=Path, default=raw_inputs.DEFAULT_CONFIG, help="원본과 작업 위치 설정")
+    parser.add_argument("--package", type=Path, default=Path("datasets/listenbrainz-preprocessing"), help="검증할 패키지 폴더")
     parser.add_argument("--manifest-sha256", help="별도로 받은 manifest의 SHA256")
     parser.add_argument("--report", type=Path, help="내부 검증 결과 JSON을 저장할 새 파일")
     args = parser.parse_args()
