@@ -1,6 +1,6 @@
 # ML Team4 공통 데이터 전처리
 
-## 모델 담당자용 데이터 사용법
+## 데이터 사용법
 
 1. [GitHub 저장소](https://github.com/ML-Team4/ML-Team4-Preprocessing)의 **Code → Download ZIP**으로 내려받고 저장소 ZIP을 푼다.
 2. 저장소 루트에서 동봉된 전처리 ZIP을 `datasets/`에 푼다.
@@ -109,4 +109,4 @@ EDA는 원본 재전처리 없이 공통 패키지와 저장소의 고정 기준
 - [CSV 검증](reports/csv-dataset-validation.md), [배포 검증](reports/distribution-validation.md), [모델 적합성과 한계](reports/model-readiness-review.md)
 - [함수·매개변수·출처](docs/audit-code-guide.md)
 
-Git에는 원본 배포 대상과 전처리 ZIP, 코드·문서·EDA 산출물을 포함한다. 압축 해제 사본·기존 Parquet·캐시·개인 설정·모델 출력은 제외한다. 설명은 한국어, 식별자·기술 용어와 그래프 표기는 영어를 사용한다. [표기 기준](AGENTS.md)
+Git에는 원본 배포 대상과 전처리 ZIP, 코드·문서·EDA 산출물을 포함한다. 압축 해제 사본·기존 Parquet·캐시·개인 설정·모델 출력은 제외한다. 설명은 한국어, 식별자·기술 용어와 그래프 표기는 영어를 사용한다.
