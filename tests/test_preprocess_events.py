@@ -88,7 +88,9 @@ class EventCleaningTest(unittest.TestCase):
                   "2026-09-28 00:00:00", "2026-10-04 23:59:59.999999",
                   "2026-10-05 00:00:00", "2026-10-11 23:59:59.999999"]
         records = [(1, t, "Artist", f"Track{i}") for i, t in enumerate(stamps)]
-        records += [(None, "2026-10-12 00:00:00", "", ""), (1, None, "", ""),
+        records += [(1, "2026-08-16 23:59:59.999999", "Artist", "Before"),
+                    (1, "2026-10-12 00:00:00", "Artist", "After"),
+                    (None, "2026-10-12 00:00:00", "", ""), (1, None, "", ""),
                     (1, "2026-08-18 00:00:00", None, ""),
                     (1, "2026-08-16 23:59:59.999999", "", ""),
                     (1, "2026-10-12 00:00:00", "", ""),
@@ -99,7 +101,7 @@ class EventCleaningTest(unittest.TestCase):
                 self.addCleanup(con.close)
                 con.execute("SET TimeZone = ?", [zone])
                 result = self.assert_matches_reference(con, records)
-                self.assertEqual(result["exclusions"], {"missing_required": 3, "outside_window": 2,
+                self.assertEqual(result["exclusions"], {"missing_required": 3, "outside_window": 4,
                                                       "empty_name": 1, "duplicate_excess": 0})
                 self.assertEqual([p["events"] for p in result["partitions"]], [2, 2, 2])
 
@@ -134,9 +136,11 @@ class EventCleaningTest(unittest.TestCase):
                     (1, "2026-08-21 00:00:00", "C ", " D"),
                     (2, "2026-08-17 00:00:00", "e\u0301", "Song"),
                     (2, "2026-08-17 00:00:00", "é", "Song")]
-        future = [(1, datetime(2026, 10, 5) + timedelta(seconds=i), *first) for i in range(20)]
+        # 각 미래 기간의 원문 빈도가 학습 대표명 선택을 뒤집을 수 있게 구성한다.
+        validation = [(1, datetime(2026, 9, 28) + timedelta(seconds=i), *first) for i in range(20)]
+        test = [(1, datetime(2026, 10, 5) + timedelta(seconds=i), *first) for i in range(20)]
         baseline = None
-        for seed, future_records in [(0, []), (17, future), (43, list(reversed(future)))]:
+        for seed, future_records in [(0, []), (17, validation), (43, test), (59, validation + test)]:
             shuffled = records + future_records
             random.Random(seed).shuffle(shuffled)
             con = fixture_connection(shuffled)
@@ -148,7 +152,8 @@ class EventCleaningTest(unittest.TestCase):
             display = sorted(con.execute("SELECT * FROM train_display_names").fetchall())
             self.assertIn(("A", "B", *second, 2), display)  # 원본 중복 7행은 빈도 7이 아니다.
             self.assertIn(("C", "D", " C", "D ", 1), display)  # 원문 쌍 빈도 동률
-            current = (sorted(con.execute("SELECT * FROM train_pairs").fetchall()), display)
+            current = (sorted(con.execute("SELECT * FROM train_events").fetchall()),
+                       sorted(con.execute("SELECT * FROM train_pairs").fetchall()), display)
             if baseline is not None:
                 self.assertEqual(current, baseline)
             baseline = current
