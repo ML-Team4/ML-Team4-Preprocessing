@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | ML_음악추천_자료조사_통합본.docx | 본문 전체·표·수식, 특히 3·7·8·10절 | 63c72757b2e243812a953c3eb04e4872a4a657a522cc95c5bdf3a9030633027e |
 | Machine-Learning_term-project_RecSys.pdf | 전체 8쪽, 특히 6~7쪽 제출 요구 | 7473758e569f3e27e198d566cbd77ad727dffb0c2e1d6fb207cb04ab791d541a |
-| Team4_Proposal_202234905_신준하.pdf | 전체 8쪽, 특히 4쪽 데이터·5~7쪽 설계 | b8bfeeca8cc8250d69b4b323b3d28d13a25eda9a36667f071dca3b25f9cb1e78 |
+| 팀 프로젝트 제안서 | 전체 8쪽, 특히 4쪽 데이터·5~7쪽 설계 | b8bfeeca8cc8250d69b4b323b3d28d13a25eda9a36667f071dca3b25f9cb1e78 |
 | 기존 analyze_window_audit.py | verified_dataset 상위 폴더의 과거 정규화·선정·집계 표현 | 26aea3223e0d044b58b1ec054ba2eeb29e317686bb62ea345f91d162c3d528df |
 
 DOCX는 XML 기반 본문·표 추출로 읽고 별도 렌더로 수식을 확인했다. 번들 렌더에서 한글 글꼴 표시가 불완전해 한글 내용은 원문 텍스트 구조와 대조했다. 이는 참고 자료 렌더 환경의 한계이며 문서 원본 손상으로 판정하지 않았다. PDF는 전체 페이지별 텍스트를 추출하고 데이터·평가 관련 페이지를 확인했다.
