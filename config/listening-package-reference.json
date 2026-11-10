@@ -4,11 +4,11 @@
     "report": "reports/distribution-validation.md",
     "origin_reference": "config/verified-package-origin.json",
     "issue": "https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/15",
-    "description": "기존 원본 대조 성공 패키지의 CSV 7개를 그대로 배포한다. 이름·안내 변경으로 필요한 manifest 값만 갱신한 고정 기준이다."
+    "description": "기존 원본 대조 성공 패키지의 CSV 7개를 그대로 배포한다. 배포 안내와 공개 재현에 필요한 항목을 반영한 manifest 고정 기준이다."
   },
   "dataset_version": "listenbrainz-preprocessing",
   "matches": true,
-  "manifest_sha256": "52c9d3f31b0454da41297c4f7105331067b1475fd3cd399248bbb4622e53d2e3",
+  "manifest_sha256": "57875974e4ac950622995151a6e63ca143daaeb2a8d4ebad0371947048ada01c",
   "checks": {
     "inputs_unchanged": true,
     "package_unchanged": true,

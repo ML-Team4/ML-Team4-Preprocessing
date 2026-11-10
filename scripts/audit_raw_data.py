@@ -166,7 +166,7 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
     cohort.update(one(con, """SELECT count(*) AS within_cohort_hash_rank_mismatches FROM
         (SELECT user_index, row_number() OVER (ORDER BY md5(cast(user_id AS VARCHAR)||':42')) AS rank
         FROM cohort) WHERE user_index<>rank"""))
-    # 기존 로컬 analyze_window_audit.py의 표현을 재현해 차이를 검증한다.
+    # 이전 정규화 규칙을 같은 원본에 적용해 집계 차이를 검증한다.
     # 이 규칙으로 현재 표본을 재선정하거나 새 전처리 규칙을 바꾸지 않는다.
     con.execute(r"CREATE MACRO legacy_name(s) AS nfc_normalize(regexp_replace(trim(s), '\s+', ' ', 'g'))")
     con.execute("""CREATE TABLE legacy_events AS SELECT DISTINCT user_id, listened_at,

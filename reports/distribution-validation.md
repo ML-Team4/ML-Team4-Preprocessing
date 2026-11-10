@@ -22,7 +22,7 @@
 
 ## 전처리 패키지와 재현 대조
 
-기존 패키지를 Parquet 원본에서 독립 검증해 CSV 7개 전체의 누락·초과가 0임을 다시 확인했다. 배포본은 폴더명과 README를 갱신했다. manifest는 배포명·README 지문·재현 명령·배포 계보를 갱신했고 CSV의 행·컬럼·공통 인덱스·순서·인코딩과 COPYING을 보존했다. [기존 패키지 기준](../config/verified-package-origin.json)과 [배포 패키지 기준](../config/listening-package-reference.json)을 분리한다.
+기존 패키지를 Parquet 원본에서 독립 검증해 CSV 7개 전체의 누락·초과가 0임을 다시 확인했다. 배포본은 폴더명과 README를 갱신했다. manifest는 배포명·README 지문·재현 명령·배포 계보를 기록한다. 공개 manifest는 실행 환경의 세부 정보와 개인 설정의 해시를 제외한다. CSV의 행·컬럼·공통 인덱스·순서·인코딩과 COPYING을 보존했다. [기존 패키지 기준](../config/verified-package-origin.json)과 [배포 패키지 기준](../config/listening-package-reference.json)을 분리한다.
 
 | 전체 대조 | 비교 파일 | 불일치 파일 |
 | --- | ---: | ---: |

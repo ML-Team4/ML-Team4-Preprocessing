@@ -7,7 +7,6 @@ import csv
 import errno
 import json
 import os
-import platform
 import re
 import shutil
 import subprocess
@@ -16,11 +15,9 @@ from datetime import datetime, timezone
 from itertools import zip_longest
 from pathlib import Path
 
-import duckdb
 import numpy as np
 import pyarrow as pa
 import pyarrow.csv as arrow_csv
-import scipy
 
 import preprocess_events as common
 from preprocess_events import base
@@ -280,14 +277,14 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
                          reference_path: Path, expected_users: int, example_script: Path | None,
                          example_variant: str | None) -> None:
     raw = settings["raw_dir"]
-    trace = base.git_trace(REPO)
     code_paths = [Path(__file__), Path(common.__file__), Path(base.__file__), Path(raw_inputs.__file__), PACKAGE_README,
                   REPO / "requirements.txt"]
     if example_script is not None:
         code_paths.append(example_script)
     source_paths = {str(p.resolve().relative_to(REPO)): p for p in code_paths}
-    source_paths.update({"input_reference": reference_path, "local_config": config})
+    source_paths["input_reference"] = reference_path
     source_hashes = {key: base.sha256(path) for key, path in source_paths.items()}
+    config_hash = base.sha256(config)
     before = common.verify_input_files(raw, common.read_reference(reference_path))
     source = json.loads((raw / "source_manifest.json").read_text(encoding="utf-8"))
     with common.working_connection(settings) as con:
@@ -309,11 +306,11 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
         copying = next({k: entry[k] for k in ("bytes", "sha256")}
                        for entry in before if entry["file"] == "COPYING")
         files = verify_package(con, staging, train, evaluation, copying)
-        engine = base.one(con, "PRAGMA version")
 
     if common.fingerprint_inputs(raw) != before:
         raise RuntimeError("패키지 생성 중 입력이 변경됐습니다")
-    if {key: base.sha256(path) for key, path in source_paths.items()} != source_hashes:
+    if (base.sha256(config) != config_hash
+            or {key: base.sha256(path) for key, path in source_paths.items()} != source_hashes):
         raise RuntimeError("패키지 생성 중 코드 또는 설정이 변경됐습니다")
     synthetic = example_script is not None
     command = ["python", "scripts/build_dataset.py", "--config", "<config>"]
@@ -359,17 +356,7 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
                        "CSV 사용자와 target 고유 사용자 대조", "복사한 패키지 문서 대조",
                        "입력·코드·설정 SHA256 보존"],
         },
-        "execution": {
-            "branch": trace["branch"], "head_at_execution": trace["head"],
-            "dirty_at_execution": None if trace["status"] is None else bool(trace["status"]),
-            "source_and_config_sha256": source_hashes, "reproduction_argv": command,
-            "python": platform.python_version(), "os": platform.platform(),
-            "duckdb": duckdb.__version__, "duckdb_engine": engine,
-            "nfc_library": {"utf8proc": "2.9.0", "unicode": "15.1.0"} if duckdb.__version__ == "1.4.4" else None,
-            "numpy": np.__version__, "scipy": scipy.__version__, "pyarrow": pa.__version__,
-            "memory_limit": settings["memory_limit"], "threads": settings["threads"],
-            "arrow_batch_rows": BATCH_ROWS,
-        },
+        "execution": {"source_and_config_sha256": source_hashes, "reproduction_argv": command},
     }
     manifest_path = staging / "dataset_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
