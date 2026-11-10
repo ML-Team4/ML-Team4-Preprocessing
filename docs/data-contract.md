@@ -1,6 +1,6 @@
 # 공통 데이터 전달 규격
 
-합성 예제에서 아래 파일의 저장과 재로딩을 검증했다. 전체 원본의 최종 규모와 해시는 전체 패키지 검증 후 기록한다. 모든 모델 담당자는 같은 데이터 버전과 공통 ID를 사용한다.
+계약 1.0.0을 실제 `listenbrainz-8week-v1` 파일 전체에 대조했다. 학습 사용자 5,000명, 곡 1,525,005개, 고유 학습 쌍 2,739,292개다. 모든 모델 담당자는 같은 데이터 버전과 공통 ID를 사용한다. [실측 규모와 검증 결과](../reports/preprocessing-report.md)
 
 ## ID와 곡 식별
 
@@ -34,7 +34,7 @@ listen_count는 중복 처리 후 **train에 남은 서로 다른 청취 시각 
 
 ## CSR 무결성
 
-`scipy.sparse.load_npz`로 읽는 CSR을 계획한다. `indices`는 행마다 item_idx 오름차순이고 중복 열·명시적 0은 없다. `indptr[0]=0`, `indptr[-1]=nnz`, 길이는 U+1이다. 구조 인덱스는 SciPy가 선택한 int32 또는 int64를 허용하고 실제 자료형을 manifest에 기록한다. data의 int64는 고정한다.
+`scipy.sparse.load_npz`로 CSR을 읽는다. `indices`는 행마다 item_idx 오름차순이고 중복 열·명시적 0은 없다. `indptr[0]=0`, `indptr[-1]=nnz`, 길이는 U+1이다. 구조 인덱스는 SciPy가 선택한 int32 또는 int64를 허용하고 실제 자료형을 manifest에 기록한다. data의 int64는 고정한다. v1에서 `indices`와 `indptr`는 모두 int32다.
 
 `nnz == train_interactions 행 수`, `sum(data) == sum(listen_count) == 정제된 train 사건 수`를 검증한다. 모든 집계 행에 대해 `matrix[user_idx,item_idx] == listen_count`가 성립해야 한다. 사용자 행 수 U와 항목 열 수 I는 매핑 파일 행 수와 일치한다. 사용자×곡 dense 행렬을 전달하거나 생성하지 않는다.
 
@@ -80,3 +80,5 @@ E는 해당 기간의 평가 사용자, T_u는 정답 집합, L_u는 추천 순�
 | 추적 | Git branch/HEAD(없으면 null), dirty 상태, 실제 생성 코드와 설정의 해시, Python·의존성·OS·명령·실행 결과 |
 
 manifest는 자기 자신의 SHA256을 내부에 넣지 않는다. 데이터 버전 묶음 전체를 검증할 때 manifest의 SHA256은 공유 메시지/별도 체크섬에 기록한다. 개인 절대 경로·토큰·사용자 원본 ID 목록을 manifest나 Git 문서에 넣지 않는다. 파일 내용이나 ID 규칙이 바뀌면 데이터 버전을 올리고 모든 파일을 같은 버전으로 함께 전달한다.
+
+`validation.status`는 생성기의 저장·재로딩 검사 상태다. 원본 기준 독립 검증과 전달 가능 여부는 해당 데이터 버전과 함께 [전체 전처리 보고서](../reports/preprocessing-report.md)에 기록한다.

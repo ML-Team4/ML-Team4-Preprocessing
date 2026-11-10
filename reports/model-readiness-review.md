@@ -6,7 +6,7 @@
 
 **기본 전처리 규칙은 타당하며 대학 팀 프로젝트의 두 방식 비교 실험을 진행할 학습 신호가 있다. 높은 추천 정확도와 인기 편향 개선은 아직 입증되지 않았다.** 전체 사용자 대비 항목 수, 동일 학습 패턴 곡, Item-based 동률, 시간 이상 신호, 메모리 사용 방식이 주요 위험이다. 데이터를 더 많이 정제하면 자동으로 성능이 좋아진다는 근거는 없다.
 
-직접 관측한 주요 통계와 해석은 이 Markdown 보고서, 기본 검사값과 여섯 입력 해시는 [원본 보고서](raw-data-audit.md)에서 Git으로 읽을 수 있다. 상세 기계 판독 통계인 `reports/model-readiness-diagnostics.json`은 로컬 생성물로 Git에서 제외되며 새 clone에는 없다. 재생성 명령은 아래 실행과 재현 정보에 있다. JSON 없이도 두 Markdown 보고서와 [전처리 계획](../docs/preprocessing-plan.md)·[데이터 계약](../docs/data-contract.md)을 읽고 공통 전처리 준비를 시작할 수 있다. 아래에서 통계·수학적 추론·미검증 항목을 구분한다. 모델을 학습하거나 실제 추천 목록·Recall·ARP를 계산하지 않았다. 수학적 Recall 상한과 양의 유사도 경로 비율은 모델 성능 측정값이 아니다.
+직접 관측한 주요 통계와 해석은 이 Markdown 보고서, 기본 검사값은 [원본 보고서](raw-data-audit.md)에서 Git으로 읽을 수 있다. 상세 기계 판독 통계인 `reports/model-readiness-diagnostics.json`은 로컬 생성물로 Git에서 제외되며 새 clone에는 없다. 재생성 명령은 아래 재현 명령에 있다. JSON 없이도 두 Markdown 보고서와 [전처리 계획](../docs/preprocessing-plan.md)·[데이터 계약](../docs/data-contract.md)을 읽고 공통 전처리 준비를 시작할 수 있다. 아래에서 통계·수학적 추론·미검증 항목을 구분한다. 모델을 학습하거나 실제 추천 목록·Recall·ARP를 계산하지 않았다. 수학적 Recall 상한과 양의 유사도 경로 비율은 모델 성능 측정값이 아니다.
 
 | 검토 영역 | 판정 | 필요한 조치 |
 | --- | --- | --- |
@@ -181,18 +181,7 @@ Item-based는 블록 또는 계산 도중 상위 이웃을 유지하는 구현�
 5. 더 강한 필터가 필요하면 학습 근거·영향·대안을 먼저 정리한다. 원래 표본을 바꾸거나 저인기 곡을 일괄 삭제하지 않는다. 테스트 성능으로 정제 기준을 선택하지 않는다.
 6. 검증으로 정한 설정을 고정해 테스트를 수행하고 오프라인 성능과 실제 만족도의 한계를 함께 보고한다.
 
-## 실행과 재현 정보
-
-`scripts/check_model_readiness.py --config config/paths.local.toml`을 가상환경 Python으로 실행했다. Python 3.13.7, DuckDB 1.4.4, memory_limit 3GB, threads 2에서 44.12초, 최대 RSS 약 2.92GB였다. memory_limit은 프로세스 전체의 엄격한 상한이 아니다. 여섯 입력의 전후 해시가 같고 원본 Parquet SHA256은 기존 값과 일치한다.
-
-당시 로컬 JSON의 실행 추적 중 정확한 시각·RSS·코드 해시를 Git에서도 확인하도록 아래에 보존한다. 여섯 입력 SHA256은 [원본 보고서의 입력 파일 해시](raw-data-audit.md#입력-파일-해시와-불변성)와 모두 같았다. 새 실행의 값으로 이 과거 기록을 소급해 바꾸지 않는다.
-
-| 항목 | 당시 실행 기록 |
-| --- | --- |
-| finished_utc | `2026-11-07T16:06:17.214218+00:00` |
-| peak_rss_bytes | `2923102208` |
-| check_model_readiness.py SHA256 | `0a47c44c4c0d3564c9e10e6a48d3f1b3f37bdabd6669fb7770ad7e08cc4f201b` |
-| audit_raw_data.py SHA256 | `929c5f0ed6ad9474ec21eaea0f03cc002be53fde11665480daf1087f8b0dfa40` |
+## 재현 명령
 
 상세 집계·제한 표본은 로컬 `reports/model-readiness-diagnostics.json`에 있다. 설치와 로컬 원본 경로 설정을 마친 뒤 가상환경을 활성화하고 저장소 루트에서 다음 명령으로 재생성한다.
 

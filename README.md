@@ -1,6 +1,6 @@
 # ML Team4 공통 데이터 전처리
 
-인기 편향 완화를 통한 개인화 음악 추천 프로젝트의 공통 데이터 저장소다. **공통 학습·평가 패키지 생성기를 구현하고 합성 예제로 저장과 재로딩을 확인했다.** 실제 원본을 사용한 전체 패키지 생성과 독립 검증은 아직 수행하지 않았다.
+인기 편향 완화를 통한 개인화 음악 추천 프로젝트의 공통 데이터 저장소다. ListenBrainz 8주 원본에서 `listenbrainz-8week-v1`을 생성하고 저장된 학습·평가 파일 전체를 원본과 독립 대조했다. [전체 전처리 보고서](reports/preprocessing-report.md)
 
 ## 출처와 이용 조건
 
@@ -14,7 +14,7 @@
 
 ## 설치와 경로 설정
 
-Python 3.11 이상(macOS/Linux, Colab 포함)을 사용한다. 이번 실행은 Python 3.13.7 / DuckDB 1.4.4 / macOS arm64에서 확인했다. `resource` 모듈로 RSS를 측정하므로 Windows 직접 실행은 지원하지 않으며 WSL을 사용한다.
+Python 3.11 이상을 사용한다. macOS/Linux와 Colab에서 실행할 수 있으며 Windows에서는 WSL을 사용한다.
 
 ```bash
 python3 -m venv .venv
@@ -37,12 +37,6 @@ verified_dataset/
   COPYING
 ```
 
-원본 Parquet SHA256:
-
-```text
-4beecfca926a472081b70bcc50c2a20193756a90f9e8dc84336076e86b72e3c3
-```
-
 ## 점검 실행
 
 설치와 로컬 경로 설정을 마친 뒤 가상환경을 활성화한 상태로 저장소 루트에서 실행한다.
@@ -55,7 +49,7 @@ python scripts/check_model_readiness.py --config config/paths.local.toml
 python -m unittest discover -s tests -v
 ```
 
-과거 실행 결과·해시 기록을 보존하며 재실행하려면 기존 보고서를 별도 보관하거나 로컬 설정의 `report_dir`을 다른 로컬 폴더로 지정한다. 후자의 경우 같은 명령으로 해당 폴더에 새 결과를 쓰며, 기존 `reports/` 기록은 유지된다. 실행 시간·환경·코드 추적은 새 실행 기준으로 기록되므로 과거 실행 기록을 소급해 바꾸지 않는다.
+과거 실행 결과·해시 기록을 보존하며 재실행하려면 기존 보고서를 별도 보관하거나 로컬 설정의 `report_dir`을 다른 로컬 폴더로 지정한다. 후자의 경우 같은 명령으로 해당 폴더에 새 결과를 쓰며, 기존 `reports/` 기록은 유지된다.
 sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계없다. 점검은 약 152만 학습 항목 전체를 유지한다.
 
 ## 직접 확인한 주요 결과
@@ -72,7 +66,7 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 | 진단 검증 평가 사용자 / 정답 쌍 | 3,922 / 193,323 |
 | 진단 테스트 평가 사용자 / 정답 쌍 | 3,852 / 201,203 |
 
-위 집계는 최종 전처리 전달본 통계가 아니다. 과거 수치와의 차이를 공백 규칙 재현으로 확인했다. 세부 샘플·제외 규모·해시·실행 시간과 RSS는 보고서에 있다. 사용자별 정상 반복을 보존하며 저인기·과도한 청취·모호한 비음악 콘텐츠를 근거 없이 제거하지 않는다.
+위 집계는 최종 전처리 전달본 통계가 아니다. 과거 수치와의 차이를 공백 규칙 재현으로 확인했다. 세부 샘플과 제외 규모는 보고서에 있다. 사용자별 정상 반복을 보존하며 저인기·과도한 청취·모호한 비음악 콘텐츠를 근거 없이 제거하지 않는다.
 
 ## 입력 검증·정제·UTC 분할
 
@@ -86,7 +80,7 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 
 재실행 보고서는 새 파일명을 사용한다. 기존 보고서는 덮어쓰지 않는다. 전체 실행에서 원본 9,350,628행 = 중복 초과 537,575행 + train 6,623,584건 + validation 1,104,514건 + test 1,084,955건을 확인했다. 결측·기간 밖·빈 이름 제외는 각각 0건이다. 품질 진단은 train 기준의 별도 관계에서 집계하며 사건 삭제·계정 병합을 하지 않는다.
 
-[실행 보고서](reports/cleaning-split-validation.md)에 실제 입력 해시·집계·자원을 기록했다. 생성 코드가 이어받는 함수와 임시 관계는 [재사용 안내](docs/cleaning-split-guide.md)에 있다.
+[실행 보고서](reports/cleaning-split-validation.md)에 입력 검증과 정제·분할 집계를 기록했다. 생성 코드가 이어받는 함수와 임시 관계는 [재사용 안내](docs/cleaning-split-guide.md)에 있다.
 
 ## 학습·평가 패키지 생성
 
@@ -105,7 +99,24 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
   --output-root .cache/datasets --version listenbrainz-8week-v1
 ```
 
-생성기는 디스크 기반 DuckDB에서 공통 정제·분할을 이어받고, Arrow 배치로 필수 컬럼을 가진 ZSTD Parquet을 쓴다. SciPy로 저장한 CSR을 다시 열어 Parquet의 전체 좌표·값과 대조한다. 임시 폴더에서 재로딩 검사를 통과한 뒤 같은 출력 위치에 버전 폴더를 확정한다. manifest에는 기간별 평가 제외 집계, 파일 해시, 생성 시점의 코드·설정·환경을 기록한다. [DuckDB Arrow 내보내기](https://duckdb.org/docs/1.4/guides/python/export_arrow), [PyArrow ParquetWriter](https://arrow.apache.org/docs/20.0/python/generated/pyarrow.parquet.ParquetWriter.html), [SciPy 희소 NPZ](https://docs.scipy.org/doc/scipy-1.15.3/reference/generated/scipy.sparse.save_npz.html)
+생성기는 디스크 기반 DuckDB에서 공통 정제·분할을 이어받고, Arrow 배치로 필수 컬럼을 가진 ZSTD Parquet을 쓴다. SciPy로 저장한 CSR을 다시 열어 Parquet의 전체 좌표·값과 대조한다. 임시 폴더에서 재로딩 검사를 통과한 뒤 같은 출력 위치에 버전 폴더를 확정한다. manifest에는 데이터 버전과 파일 정보, 정제·평가 집계를 기록한다. [DuckDB Arrow 내보내기](https://duckdb.org/docs/1.4/guides/python/export_arrow), [PyArrow ParquetWriter](https://arrow.apache.org/docs/20.0/python/generated/pyarrow.parquet.ParquetWriter.html), [SciPy 희소 NPZ](https://docs.scipy.org/doc/scipy-1.15.3/reference/generated/scipy.sparse.save_npz.html)
+
+### 전체 원본 기준의 독립 검증
+
+생성기의 재로딩 검사는 파일과 생성 관계를 대조한다. 아래 명령은 원본에서 별도로 만든 학습 좌표·횟수·인기도와 두 평가 기간의 사용자·정답을 저장된 파일 전체와 대조한다. 기존 패키지는 읽기 전용으로 열며 `"matches": true`, 모든 누락·초과 0, CSR 좌표·값 차이 0을 확인한다.
+
+```bash
+.venv/bin/python scripts/validate_dataset.py --config config/paths.local.toml \
+  --package .cache/datasets/listenbrainz-8week-v1
+```
+
+동일 버전의 저장 위치가 이미 있으면 생성 명령이 실행을 거부한다. 새로 생성해 비교할 때는 새 출력 루트를 지정한다. 새로 생성한 파일의 논리적 내용과 집계를 대조한다. 원본이 없는 모델 담당자는 [패키지 README](docs/dataset-package-readme.md)의 예제를 받은 패키지 폴더에서 실행한다.
+
+```bash
+.venv/bin/python -c 'from scipy.sparse import load_npz; m = load_npz(".cache/datasets/listenbrainz-8week-v1/train_counts.npz"); print(m.shape, m.nnz)'
+```
+
+기대 출력은 `(5000, 1525005) 2739292`이다. 모델 인수인계에는 [공통 ID와 평가 정의](docs/data-preprocessing-handoff.md)를 사용한다.
 
 ## 문서 안내
 
@@ -114,10 +125,12 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 - [원본 점검 결과 (Markdown)](reports/raw-data-audit.md)
 - [전처리 타당성과 모델 적합성 추가 검토 (Markdown)](reports/model-readiness-review.md)
 - [입력 검증·정제·분할 실행 보고서](reports/cleaning-split-validation.md)
+- [정제 근거와 시간 분할 검증](reports/temporal-split-review.md)
+- [전체 학습·평가 패키지 생성과 독립 검증](reports/preprocessing-report.md)
 - [정제·분할 실행과 코드 재사용](docs/cleaning-split-guide.md)
 - [공통 전처리 기준](docs/preprocessing-plan.md)
 - [파일·ID·행렬·평가 데이터 규격](docs/data-contract.md)
-- [팀 전달 설명 초안](docs/data-preprocessing-handoff.md)
+- [팀 전달 안내](docs/data-preprocessing-handoff.md)
 - [과제·설계 자료 대조](docs/source-review.md)
 - [라이브러리·함수·매개변수와 출처](docs/audit-code-guide.md)
 - [진행 상황과 다음 시작 지점](PROGRESS.md)

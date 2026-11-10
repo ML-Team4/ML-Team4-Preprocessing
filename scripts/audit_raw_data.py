@@ -284,7 +284,7 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
 
 
 def render_report(result: dict) -> str:
-    """실행 결과를 빠짐없이 표로 렌더한다. 표의 JSON 문자열은 줄바꿈/HTML을 이스케이프한다."""
+    """데이터 점검 결과를 표로 렌더한다. 표의 JSON 문자열은 줄바꿈/HTML을 이스케이프한다."""
     def table(records):
         if isinstance(records, dict):
             records = [{"항목":k,"값":v} for k,v in records.items()]
@@ -301,8 +301,7 @@ def render_report(result: dict) -> str:
         "## 검증 범위와 근거\n",
         "Parquet 전체를 읽어 스키마·통계·해시를 검사했다. 함께 제공된 여섯 파일의 해시를 실행 전후 대조했다. 이름 정규화는 NFC와 고정된 유니코드 공백 29종의 축약이다. 결측·빈 이름·범위 밖 행을 진단 집계에서 분리하고 동일 사용자·시각·정규화 튜플은 한 건으로 집계했다. 원본은 수정하지 않았다.\n",
         "부속 README·source_manifest·기존 검증 JSON의 추출 방법 및 공식 덤프 규모는 **기존 설명에 기록된 사실**이다. 원본 TAR, 20,284명 전체 후보군, 표본의 상위 5,000명 선정 순위는 다시 검증하지 않았다. 로컬 CSV와 현재 학습 이력의 일치 여부만 직접 검증했다. TIMESTAMP에는 시간대가 내장되어 있지 않아 UTC 해석은 부속 자료의 명세를 따른다.\n"]
-    for title,key in [("실행 환경","execution"),("입력 파일 해시와 불변성","input_files"),
-                      ("컬럼과 실제 자료형","schema"),("원본 전체 통계","raw"),("결측 수","nulls"),
+    for title,key in [("컬럼과 실제 자료형","schema"),("원본 전체 통계","raw"),("결측 수","nulls"),
                       ("빈 문자열과 이름 정규화 영향","strings"),("선정 사용자 CSV 대조","cohort"),
                       ("원본 기간별 규모","raw_partitions"),("원문 키 중복 후보","raw_exact"),
                       ("원문 이름 튜플 수","raw_items"),("정규화 후 중복 후보 진단","diagnostic"),
@@ -323,7 +322,6 @@ def render_report(result: dict) -> str:
         "과도한 청취량과 podcast·audiobook 등의 문자열은 검토 신호일 뿐이다. 네 컬럼만으로 재생 길이, 실제 사람의 청취, 음악 여부를 판정할 수 없으므로 해당 신호로 자동 삭제하지 않는다. 동명 곡의 오병합과 표기 차이의 과분리는 남는다.\n",
         "여기서 재산출된 수치가 과거 검증 수치와 같더라도 최종 전달본 통계는 아니다. 최종 해시·ID·sparse matrix·제외 사유별 산출물 검증은 패키지 생성 시 수행한다. source_manifest의 공식 TAR 전체 해시를 검증한 것이 아니다.\n",
         "## 진단 일별 규모\n",table(result["daily"]),
-        "## 코드 추적\n",table(result["code_trace"]),
         "규칙과 전달 규격은 `docs/preprocessing-plan.md`, `docs/data-contract.md`를 따른다. 원본 사용자 식별자는 보고서에 싣지 않았다.\n"])
     return "\n".join(lines)
 

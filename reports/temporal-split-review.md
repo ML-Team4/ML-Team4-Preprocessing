@@ -1,6 +1,6 @@
 # 청취 기록 정제 근거와 훈련·검증·테스트 시간 분할 검증
 
-2026-11-10 · ListenBrainz 8주 전달본 · 기준 코드 `61a78e398bdafccd3ab41fc3ed9b21c4aaea7f9e`
+2026-11-10 · ListenBrainz 8주 전달본
 
 과거 청취 기록만 확보한 시점에 기존 사용자에게 훈련 중 듣지 않은 곡을 추천하는 설정이다. 원본 9,350,628행을 기존 CLI로 처리했고, 독립 쿼리로 만든 기간별 사건 키 집합과 양방향으로 일치했다. 이 문서는 [공통 전처리 기준](../docs/preprocessing-plan.md), [데이터 계약](../docs/data-contract.md), [기존 정제·분할 실행 기록](cleaning-split-validation.md)을 근거로 삼는다.
 
@@ -8,16 +8,7 @@
 
 MetaBrainz Foundation / ListenBrainz 전체 덤프 2723의 전달본이다. 동봉 `source_manifest.json`의 스냅샷은 `2026-10-15 00:00:02.588811 UTC`이고 `COPYING`은 CC0 1.0 Universal이다. Parquet에는 `user_id BIGINT`, `listened_at TIMESTAMP`, `artist_name VARCHAR`, `recording_name VARCHAR`가 순서대로 있다. Parquet 메타데이터의 시각 정밀도는 마이크로초이며 시간대 표시는 없다. 부속 README의 명세대로 UTC로 해석하고 사건 키의 시각을 반올림하거나 초 단위로 절삭하지 않았다.
 
-아래 바이트 수와 SHA256은 [고정 입력 기준](../config/raw-input-reference.toml) 및 [기존 기록](cleaning-split-validation.md)과 모두 일치했다. CLI와 독립 대조 모두 여섯 파일을 읽기 전용으로 열고 각각 실행 전후 지문이 같음을 확인했다.
-
-| 입력 | 바이트 | SHA256 |
-| --- | ---: | --- |
-| listens_8weeks_5000users.parquet | 144,828,609 | `4beecfca926a472081b70bcc50c2a20193756a90f9e8dc84336076e86b72e3c3` |
-| README.txt | 5,183 | `fd8104ccfd16875bac897640464d7927ffce8c2057016a53cd6b9bf5625d5e7e` |
-| selected_users.csv | 76,347 | `6ca4013d636ac7c16aa52ce6fa1e9fa670df1a4aca8eda64ad9f30f45cbe94a5` |
-| source_manifest.json | 306,507 | `7e0af4eb5328ab661e66efc7bf9378d74cb8c8e1a377d3792ac93889765ec526` |
-| verified_8week_summary.json | 7,606 | `ac897b3ee55bfd6aa2145dfd16c3eb7705604f6cbaa73646cafdc33d980a445f` |
-| COPYING | 6,390 | `75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea` |
+원본 입력은 고정 기준 및 기존 정제·분할 기록과 일치했다. CLI와 독립 대조에서 각각 원본 보존을 확인했다. [고정 입력 기준](../config/raw-input-reference.toml) · [기존 기록](cleaning-split-validation.md)
 
 - **기존 선정 기록.** `md5(str(user_id) + ":42") < "8"`로 해시 하위 절반의 후보를 읽었다. 2026-08-17~09-27 UTC의 과거 규칙으로 정규화한 고유 곡을 10개 이상 들은 20,284명 중 같은 해시의 오름차순 처음 5,000명을 선택했다고 기록되어 있다. 선정에 쓰인 정보는 사용자 ID의 고정 해시와 train 42일 동안의 이름 쌍이다. 이후 14일의 청취는 선정 뒤 해당 사용자에 대한 로그를 담는 데 사용되었다.
 - **직접 확인.** CSV의 5,000행은 사용자 및 표시 ID가 각각 고유하고, Parquet 사용자 집합과 양방향 차이가 0명이다. 전달된 표본 안에서 해시 조건 위반과 `user_index` 순위 불일치는 각각 0명이다. 기존 공백 규칙을 train에 적용한 고유 곡 수는 CSV와 5,000명 모두 일치한다. 현재 공백 규칙에서는 8명의 수가 달라지지만 최소 고유 곡 수는 10이고 5,000명 모두 train 이력이 남는다. 기존 5,000명 전원을 유지했다.
@@ -99,7 +90,7 @@ NFC, 공백, 필수값 및 중복 판정은 기간과 무관하게 미리 고정
 - **훈련 ID·인기도·학습 데이터.** 기존 패키지 합성 테스트에서 미래 청취를 교체한 입력과 기준 입력의 `users`, `items`, `train_interactions` 전체 행이 일치했다. CSR의 shape, `indptr`, `indices`, `data`도 각각 같았다. 행 순서만 섞은 입력도 동일했다.
 - **평가 구조.** 기존 합성 예제는 같은 미청취 곡 쌍이 validation과 test의 정답에 모두 남는 것을 확인했다. 후보가 9개인 사용자의 제외와 train 기청취곡·신규 곡의 제외도 검사했다. 정답 구조는 후보와 기간 규칙으로 검증했다.
 
-## 재현 명령과 코드 식별
+## 재현 명령
 
 저장소 루트에서 [README](../README.md)의 가상환경과 `config/paths.local.toml`을 준비한다. 설정에서 `raw_dir`은 기존 전달본, `cache_dir`은 원본 밖의 로컬 폴더를 가리킨다.
 
@@ -111,7 +102,3 @@ NFC, 공백, 필수값 및 중복 판정은 기간과 무관하게 미리 고정
 ```
 
 기존 CLI의 Markdown 사본이 필요하면 원본 밖의 새 임시 경로를 `--report`로 지정한다. 두 명령은 Parquet의 필요한 열을 읽고 중간 관계를 디스크 기반 임시 DB에서 처리한다.
-
-- `scripts/preprocess_events.py` SHA256 `35dd51e66e9eec6a50abcf8edd2e4628c26455ec6f21352f2c7088d3ad84b994`
-- `scripts/audit_raw_data.py` SHA256 `7223358fa7f749039f96a9393d7b8288af6c8908d3b2bf099e299fb9816ccd58`
-- `scripts/review_temporal_split.py` SHA256 `79bef87ab25dc96a3632866b16d5661707dd6939f9875133c51a38959b37d4c1`

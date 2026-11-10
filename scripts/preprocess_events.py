@@ -283,13 +283,10 @@ def working_connection(settings: dict):
 def render_report(result: dict) -> str:
     lines = ["# 입력 검증·정제·UTC 분할 실행 기록", "",
              "최종 전달 패키지 생성 전의 전체 입력 검증·임시 정제 실행이다. "
-             "원본 사용자 ID·개인별 기록·개인 경로는 포함하지 않는다.", "",
-             "## 입력 파일 대조", "", "| 파일 | bytes | SHA256 |", "| --- | --- | --- |"]
-    for entry in result["input_files"]:
-        lines.append(f"| {entry['file']} | {entry['bytes']} | `{entry['sha256']}` |")
+             "원본 사용자 ID·개인별 기록·개인 경로는 포함하지 않는다."]
     for heading, key in [("입력 스키마·선정 사용자", "input_validation"),
                          ("정제 제외와 분할 집계", "cleaning"),
-                         ("학습 기간 품질 진단", "quality"), ("실행 추적", "execution")]:
+                         ("학습 기간 품질 진단", "quality")]:
         if key in result:
             lines += ["", "## " + heading, "", "```json",
                       json.dumps(result[key], ensure_ascii=False, indent=2), "```"]
