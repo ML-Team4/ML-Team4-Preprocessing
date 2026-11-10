@@ -3,3 +3,5 @@ duckdb==1.4.4
 numpy==2.2.6
 pyarrow==20.0.0
 scipy==1.15.3
+# EDA의 집계표를 영어 제목·축·범례의 정적 그래프로 저장한다.
+matplotlib==3.10.7

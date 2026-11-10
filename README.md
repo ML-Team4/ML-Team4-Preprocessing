@@ -114,6 +114,34 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 
 학습 CSV는 2,739,292행이며 청취 횟수 합계는 6,623,584건이다. 사용자 5,000명과 곡 1,525,005개의 공통 ID를 사용한다. [패키지 README](docs/dataset-package-readme.md)의 예제로 CSV를 읽고 희소 행렬과 곡명을 확인한다. [공통 ID와 평가 정의](docs/data-preprocessing-handoff.md)를 두 모델에 동일하게 적용한다.
 
+## 청취 분포와 평가 범위 분석
+
+CSV `listenbrainz-8week-v2`의 학습 인기도·사용자 이력과 평가 가능 범위를 [한국어 EDA 보고서](reports/listening-eda.md)에서 확인한다. [곡 수·청취 사건 비중 비교](reports/eda/figures/popularity-shares.png), [사용자별 고유 학습곡 분포](reports/eda/figures/user-training-tracks.png), [작은 집계표](reports/eda/tables/), [분석 manifest](reports/eda/analysis_manifest.json)와 [독립 검증 기록](reports/eda/verification.json)를 제공한다. 개인별 이력은 산출물에 포함하지 않는다.
+
+```bash
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python scripts/analyze_listening.py \
+  --package "../공유 데이터셋/listenbrainz-8week-v2" \
+  --output-dir .cache/eda-recheck
+.venv/bin/python scripts/verify_listening_analysis.py \
+  --package "../공유 데이터셋/listenbrainz-8week-v2" \
+  --output-dir .cache/eda-recheck --reproduce
+# 게시할 산출물 자체도 별도로 재현 대조한다.
+.venv/bin/python scripts/verify_listening_analysis.py \
+  --package "../공유 데이터셋/listenbrainz-8week-v2" \
+  --output-dir reports/eda --reproduce
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m pip check
+```
+
+이 명령은 원본 Parquet·개인 경로 설정·기존 개인 캐시 없이 CSV 전달본과 저장소의 기존 검증 보고서·[고정 패키지 기준](config/listening-package-reference.json)을 읽는다. 원본 대조 성공 기록의 버전·성공 상태·manifest 식별값을 저장소에 보관해 CSV와 자체 manifest를 함께 바꾼 사본도 거부한다. 검사 대상에서 신뢰 기준을 다시 만들지 않는다. PyArrow로 명시적 자료형을 적용하고 NumPy로 열 단위 집계, Matplotlib으로 영어 그래프를 생성한다. 새 출력 폴더의 집계 CSV 11개·그림 2개·manifest와 `checks_passed: true`를 확인한다. 검증 명령은 DuckDB의 별도 SQL 집계·그림 명세·인기도·기간 활동·모든 평가 표와 재실행 결과를 대조하고 `matches: true`·`mismatches: 0`을 출력한다. `--output-dir`을 생략하면 `reports/eda/`의 생성 결과를 갱신한다. 한국어 해석 보고서는 수동 관리한다.
+
+`analysis_manifest.json`은 입력·코드·근거 식별과 예정된 집계 CSV 11개·PNG 2개의 목록·스키마·그림 수치를 기록한다. `verification.json`은 해당 분석 manifest에 대한 독립 검사의 최신 상태이며 재현 산출물 목록에서 제외한다. 생성기는 재생성 후 검증을 `not_run`으로 바꾸고 검증기는 성공·실패를 각각 기록한다. 두 명령은 실제 파일과 고정 상대경로 목록을 대조하며 누락·초과 경로를 표시한다. 생성기는 기존 사용자 파일을 삭제하지 않고 예상 밖 파일이 있으면 중단하므로 새 출력 폴더를 권장한다. `.gitignore`는 예정된 11개 집계 CSV만 예외로 추적한다.
+
+전체 회귀 테스트 42개와 `pip check`를 통과했다. CSV와 자체 manifest의 동시 변조, 보고서의 169→999 변경과 평가 표 수치·단위·비율 170개 변경, 범주 누락·중복·잘못된 기간·분모, 산출물 누락·초과를 임시 사본에서 거부했다. 정상 보고서의 행 순서 변경은 허용한다.
+
+학습곡 1,525,005개·학습 쌍 2,739,292개·청취 횟수 합 6,623,584건과 검증/테스트 정답 193,323쌍/201,203쌍을 기존 검증 결과와 대조했다. train 고유 청취자 1명인 곡은 전체 학습곡의 78.97%, 학습 사건의 33.00%다. 두 비율의 분모와 구간의 용도는 보고서에 명시했다. 1·2·3명 이상은 EDA 구간이며 최종 저인기 평가 기준은 아니다.
+
 ## 문서 안내
 
 설명 문서와 코드 주석은 한국어로 작성한다. 변수·함수·컬럼명과 기술 용어는 영어로 표기하며, 그래프 제목·축·범례도 영어로 작성한다. 반복해서 사용하는 기술 용어와 원문 보존 기준은 [AGENTS.md](AGENTS.md)에 기록했다.
@@ -123,6 +151,7 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 - [입력 검증·정제·분할 실행 보고서](reports/cleaning-split-validation.md)
 - [정제 근거와 시간 분할 검증](reports/temporal-split-review.md)
 - [CSV 생성·검증 결과](reports/csv-dataset-validation.md)
+- [CSV 학습 인기도와 평가 범위 EDA](reports/listening-eda.md)
 - [이전 패키지의 원본 대조 기록](reports/preprocessing-report.md)
 - [정제·분할 실행과 코드 재사용](docs/cleaning-split-guide.md)
 - [공통 전처리 기준](docs/preprocessing-plan.md)

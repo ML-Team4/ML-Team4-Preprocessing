@@ -1,0 +1,2 @@
+﻿dataset_version,users,items,user_item_pairs,events,matrix_density,listener_count_mismatches,repeat_events_after_first_pair
+listenbrainz-8week-v2,5000,1525005,2739292,6623584,0.0003592502319664526,0,3884292

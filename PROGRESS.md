@@ -1,10 +1,30 @@
 # 공통 데이터 작업 진행 상황
 
+## 청취 분포와 평가 범위 분석
+
+2026-11-10 기준. `git fetch origin` 후 로컬 `work/eda`가 PR #10·#12를 포함한 최신 `origin/main`과 같은 커밋임을 확인했다. 기존 EDA 코드·보고서·산출물의 미추적 파일과 문서·의존성 변경을 이어받았고 스테이징된 파일은 없었다. 열린 [Issue #13](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/13)을 재사용하며 종료된 [#4](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/4) 연결을 유지했다.
+
+CSV `listenbrainz-8week-v2` 7개의 무결성·전체 수치 열과 기존 검증표를 대조했다. 학습 사용자 5,000명·곡 1,525,005개·고유 쌍 2,739,292개·사건 6,623,584건, validation/test 정답 193,323쌍·201,203쌍은 기준과 차이 0이다. 곡별 고유 청취자 수의 CSV 재계산 불일치는 전체 1,525,005곡 중 0개다. matrix density는 0.035925%다.
+
+단독 청취자 곡은 전체 학습곡의 78.97%, 학습 청취 사건의 33.00%다. train 사용자별 고유곡 중앙값은 320개이며 평가 가능 사용자는 표본 5,000명 중 validation 3,922명·test 3,852명이다. 정제 전후·기간별 실제 관측일·활동 사용자와 제외 사유는 기존 검증 보고서·manifest를 재사용했다. 공통 패키지와 표본을 보존했다.
+
+[분석 코드](scripts/analyze_listening.py), [한국어 보고서](reports/listening-eda.md), [집계 CSV 11개](reports/eda/tables/), [영어 그래프 2개](reports/eda/figures/), [내부 검사 manifest](reports/eda/analysis_manifest.json)를 작성했다. 개인별 이력은 저장하지 않는다. 집계 CSV는 UTF-8 BOM·헤더를 갖추고 자료형·분모·버전을 기록한다. 그림은 저장한 집계표에서 생성한다.
+
+재현 명령은 README의 [청취 분포 분석](README.md#청취-분포와-평가-범위-분석)에 있다. CSV 전체 집계·정답 후보·기존 표 대조와 회귀 테스트 42개를 통과했다. 제외 사유 합계뿐 아니라 train·기간 활동·후보 사용자 수의 관계를 검사한다. 재생성 후 별도 검증 기록은 미실행 상태로 바꾸고 검증 실패도 기록해 이전 성공이 남지 않게 했다. [산출물 검증 코드](scripts/verify_listening_analysis.py)의 별도 SQL 대조에서 집계·분위수·구간과 그림 명세·모든 평가 표·인기도·기간 활동 표 불일치는 0건이며, 별도 경로 재실행의 집계표·그림·분석 manifest가 일치했다. 의존성 검사·차이 형식 검사·그림 육안 확인도 통과했다. [검증 기록](reports/eda/verification.json)
+
+기존 자체 manifest 대조만으로는 CSV와 manifest를 함께 바꾼 사본을 구분할 수 없었다. 원본 대조 성공 기록의 데이터 버전·성공 상태·manifest 식별값이 실제 전달본과 같은지 확인한 뒤 [저장소 내부 기준](config/listening-package-reference.json)에 고정했다. 분석과 독립 검증 모두 이를 적용하며 새 clone에서도 기존 개인 캐시가 필요하지 않다. 식별값은 내부 JSON에만 보관한다.
+
+평가 사용자·배타적 제외 사유, 정답 총수·사용자별 요약·구간, 신규곡·기청취곡·후보 교집합의 사건·고유 쌍과 비율을 기간·범주 키로 대조한다. 보고서의 단위·분모·표시 자릿수까지 검사한다. 예정된 CSV 11개·PNG 2개와 내부 기록 2개의 정확한 상대경로를 검사하며, 예상 밖 파일은 자동 삭제하지 않고 중단한다. 분석 manifest는 산출물 명세, 검증 기록은 최신 독립 검사 상태로 구분했다. CSV 추적 예외도 11개 경로로 한정했다.
+
+추가 회귀 검사에서 CSV·manifest 동시 변조, 169→999 보고서 변경, 평가 표 수치·단위·비율 170개 변경과 범주·기간·분모 오류, 산출물 누락·초과를 임시 사본에서 거부했다. 실제 v2를 빈 출력 폴더에서 분석·독립 검증했고 `reports/eda/`에도 `--reproduce`를 실행해 CSV 11개·PNG 2개·분석 manifest 일치와 최종 `status: passed`·`matches: true`·`mismatches: 0`을 확인했다. 두 그림의 영어 표기·수치·분모·버전·잘림을 직접 확인했다. 신규 파일을 포함한 변경 형식과 의존성도 정상이다.
+
+1·2·3명 이상은 기술통계 구간이며 최종 저인기 기준·실제 편향 완화와 모델 성능은 후속 모델 평가에서 다룬다.
+
 ## CSV 전달 데이터셋
 
 학습·곡·사용자·평가 데이터 출력을 UTF-8 BOM CSV 7개로 통일했다. listenbrainz-8week-v2는 저장소 옆 공유 데이터셋 폴더에 있다. 모든 CSV의 원본 기준 누락·초과는 0건이며, v1과도 모든 값·순서가 일치했다. 관련 회귀 테스트 26개와 실제 패키지 로딩 예제를 통과했다. [변경 이유·검증 결과·직접 확인](reports/csv-dataset-validation.md)
 
-작업 브랜치는 work/csv-datasets이고 [Issue #11](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/11)에 연결된다. 학습·평가에는 CSV 전달본을 사용한다. 다음 작업은 모델 담당자용 문서 보완이다.
+CSV 전달 형식 변경은 work/csv-datasets에서 진행했고 [Issue #11](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/11)에 연결된다. 학습·평가에는 CSV 전달본을 사용한다. 청취 분포 분석은 위 기록과 EDA 보고서에서 이어서 확인한다.
 
 2026-11-10 (Asia/Seoul) 갱신. [Issue #9](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/9)의 전체 학습·평가 패키지는 생성과 독립 검증을 마쳤다.
 
