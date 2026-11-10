@@ -1,6 +1,6 @@
 # 공통 학습·평가 데이터 팀 전달 안내
 
-Item-based와 Implicit MF 모두 독립 검증을 통과한 `listenbrainz-8week-v1`을 사용한다. 패키지 README의 Python 예제로 CSR·곡 매핑·기간별 정답을 확인한다. 처리 방법과 검증 결과는 [전체 전처리 보고서](../reports/preprocessing-report.md)에 있다.
+Item-based와 Implicit MF 모두 독립 검증을 통과한 `listenbrainz-8week-v2`을 사용한다. 패키지 README의 Python 예제로 CSV를 읽고 곡 매핑·기간별 정답을 확인한다. 학습 CSR은 CSV에서 메모리에 구성한다. 처리 방법과 검증 결과는 [CSV 생성·검증 보고서](../reports/csv-dataset-validation.md)에 있다.
 
 | 해결할 문제 | 적용한 기준과 이유 | 관측 결과와 한계 |
 | --- | --- | --- |
@@ -13,9 +13,9 @@ Item-based와 Implicit MF 모두 독립 검증을 통과한 `listenbrainz-8week-
 
 ## 공통 ID와 모델 입력
 
-CSR은 사용자 행 × 곡 열이고 값은 정제된 train 청취 횟수다. `items.parquet`의 `train_listener_count`는 곡을 들은 고유 학습 사용자 수다. 모델이 log 변환·confidence·인기도 보정을 적용할 때 이 두 원시 값을 각각 사용한다. 관측되지 않은 좌표는 선호 여부를 알 수 없는 쌍이다.
+train_interactions.csv에는 고유 사용자·곡 쌍과 정제된 train 청취 횟수가 있다. 이 값으로 사용자 행 × 곡 열의 CSR을 구성한다. `items.csv`의 `train_listener_count`는 곡을 들은 고유 학습 사용자 수다. 모델이 log 변환·confidence·인기도 보정을 적용할 때 이 두 원시 값을 각각 사용한다. 관측되지 않은 좌표는 선호 여부를 알 수 없는 쌍이다.
 
-모델 내부 ID를 바꾸면 `users.parquet`와 `items.parquet`의 공통 ID로 되돌리는 매핑을 보존한다. 공유 추천 결과의 행과 열은 0 기반 `user_idx`와 `item_idx`로 복원한다. 선정 CSV의 `user_index`는 점검용 표시 번호다.
+모델 내부 ID를 바꾸면 `users.csv`와 `items.csv`의 공통 ID로 되돌리는 매핑을 보존한다. 공유 추천 결과의 행과 열은 0 기반 `user_idx`와 `item_idx`로 복원한다. 선정 CSV의 `user_index`는 점검용 표시 번호다.
 
 ## 평가 기준
 

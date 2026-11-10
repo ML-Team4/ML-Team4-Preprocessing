@@ -1,8 +1,14 @@
 # 공통 데이터 작업 진행 상황
 
+## CSV 전달 데이터셋
+
+학습·곡·사용자·평가 데이터 출력을 UTF-8 BOM CSV 7개로 통일했다. listenbrainz-8week-v2는 저장소 옆 공유 데이터셋 폴더에 있다. 모든 CSV의 원본 기준 누락·초과는 0건이며, v1과도 모든 값·순서가 일치했다. 관련 회귀 테스트 26개와 실제 패키지 로딩 예제를 통과했다. [변경 이유·검증 결과·직접 확인](reports/csv-dataset-validation.md)
+
+작업 브랜치는 work/csv-datasets이고 [Issue #11](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/11)에 연결된다. 학습·평가에는 CSV 전달본을 사용한다. 다음 작업은 모델 담당자용 문서 보완이다.
+
 2026-11-10 (Asia/Seoul) 갱신. [Issue #9](https://github.com/ML-Team4/ML-Team4-Preprocessing/issues/9)의 전체 학습·평가 패키지는 생성과 독립 검증을 마쳤다.
 
-## 전체 원본 패키지 생성과 독립 검증
+## 이전 전달 형식의 원본 대조 기록
 
 - 정제 근거와 시간 분할 검증 [PR #8](https://github.com/ML-Team4/ML-Team4-Preprocessing/pull/8)의 main 머지 `0e4701ce7565d283f22ab80c637d20bcaf0c6504`를 확인했다. `git fetch origin` 후 같은 커밋에서 로컬 `work/dataset-validation`을 시작했다.
 - `listenbrainz-8week-v1`을 생성하고 독립 검증을 완료했다. 패키지는 `.cache/datasets/listenbrainz-8week-v1/`에 있으며 팀에 전달할 수 있다. [전체 전처리 결과](reports/preprocessing-report.md)

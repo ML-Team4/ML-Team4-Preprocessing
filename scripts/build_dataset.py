@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import codecs
 import csv
 import errno
 import json
@@ -18,9 +19,8 @@ from pathlib import Path
 import duckdb
 import numpy as np
 import pyarrow as pa
-import pyarrow.parquet as pq
+import pyarrow.csv as arrow_csv
 import scipy
-from scipy import sparse
 
 import preprocess_events as common
 from preprocess_events import base
@@ -33,7 +33,7 @@ PERIODS = ("validation", "test")
 USER_EXCLUSIONS = ("no_train", "no_period_activity", "no_target", "fewer_than_10_candidates")
 PAIR_KINDS = ("new_item", "train_seen", "known_item_no_train_user", "candidate")
 ID_PAIR = (("user_idx", pa.int32()), ("item_idx", pa.int32()))
-PARQUET_FILES = {
+CSV_FILES = {
     "train_interactions": (ID_PAIR + (("listen_count", pa.int64()),), ("user_idx", "item_idx")),
     "users": ((("user_idx", pa.int32()), ("user_id", pa.int64())), ("user_idx",)),
     "items": ((("item_idx", pa.int32()), ("artist_name", pa.string()),
@@ -126,82 +126,56 @@ def build_evaluation(con, period: str, catalog_size: int, cohort_size: int, even
 
 def ordered_batches(con, table: str):
     """한 번에 최대 BATCH_ROWS행을 전달하는 정렬 쿼리와 필수 필드 스키마."""
-    columns, order = PARQUET_FILES[table]
+    columns, order = CSV_FILES[table]
     schema = pa.schema([pa.field(name, dtype, nullable=False) for name, dtype in columns])
     projection = ", ".join(schema.names)
     result = con.execute(f"SELECT {projection} FROM {table} ORDER BY {', '.join(order)}")
     return schema, result.fetch_record_batch(BATCH_ROWS)
 
 
-def write_parquet(con, staging: Path) -> None:
-    for table in PARQUET_FILES:
+def read_csv_batches(path: Path, schema: pa.Schema):
+    """명시한 자료형으로 CSV를 읽고 일정 행 수의 배치로 재구성한다."""
+    with arrow_csv.open_csv(
+        path,
+        read_options=arrow_csv.ReadOptions(block_size=8 * 1024 * 1024),
+        parse_options=arrow_csv.ParseOptions(newlines_in_values=True),
+        convert_options=arrow_csv.ConvertOptions(
+            column_types={field.name: field.type for field in schema},
+            null_values=[], strings_can_be_null=False),
+    ) as reader:
+        if reader.schema.names != schema.names:
+            raise ValueError(f"{path.name}의 CSV 헤더와 열 순서가 다릅니다")
+        pending = []
+        pending_rows = 0
+        for batch in reader:
+            if any(column.null_count for column in batch.columns):
+                raise ValueError(f"{path.name}에서 NULL이 발견됐습니다")
+            offset = 0
+            while offset < batch.num_rows:
+                size = min(BATCH_ROWS - pending_rows, batch.num_rows - offset)
+                pending.append(pa.RecordBatch.from_arrays(
+                    [column.slice(offset, size) for column in batch.columns], schema=schema))
+                pending_rows += size
+                offset += size
+                if pending_rows == BATCH_ROWS:
+                    yield pa.Table.from_batches(pending).combine_chunks().to_batches()[0]
+                    pending = []
+                    pending_rows = 0
+        if pending:
+            yield pa.Table.from_batches(pending).combine_chunks().to_batches()[0]
+
+
+def write_csv(con, staging: Path) -> None:
+    """문자열의 쉼표·따옴표·개행을 인용하고 UTF-8 BOM을 포함해 저장한다."""
+    for table in CSV_FILES:
         schema, reader = ordered_batches(con, table)
-        with reader, pq.ParquetWriter(staging / f"{table}.parquet", schema, compression="zstd") as writer:
-            for batch in reader:
-                if any(column.null_count for column in batch.columns):
-                    raise RuntimeError(f"{table}에서 NULL이 발견됐습니다")
-                writer.write_batch(pa.RecordBatch.from_arrays(batch.columns, schema=schema))
-
-
-def write_csr(staging: Path, train: dict) -> None:
-    """정렬된 상호작용을 배치로 읽어 희소 열·값과 사용자별 행 포인터를 채운다."""
-    shape = (train["users"], train["items"])
-    nnz = train["user_item_pairs"]
-    indices = np.empty(nnz, dtype=np.int32)
-    data = np.empty(nnz, dtype=np.int64)
-    indptr = np.zeros(shape[0] + 1, dtype=np.int64)
-    offset = 0
-    with pq.ParquetFile(staging / "train_interactions.parquet") as parquet:
-        for batch in parquet.iter_batches(batch_size=BATCH_ROWS):
-            users, items, counts = (column.to_numpy() for column in batch.columns)
-            end = offset + batch.num_rows
-            if end > nnz or np.any(users < 0) or np.any(users >= shape[0]):
-                raise RuntimeError("train 고유 쌍 수 또는 user_idx가 범위를 벗어났습니다")
-            indices[offset:end] = items
-            data[offset:end] = counts
-            indptr[1:] += np.bincount(users, minlength=shape[0])
-            offset = end
-    if offset != nnz:
-        raise RuntimeError("train 고유 쌍 수가 정제된 train_pairs와 다릅니다")
-    np.cumsum(indptr, out=indptr)
-    matrix = sparse.csr_matrix((data, indices, indptr), shape=shape)
-    sparse.save_npz(staging / "train_counts.npz", matrix)
-
-
-def verify_csr(staging: Path, train: dict) -> dict:
-    """NPZ를 일반 소비자 API로 열어 좌표·값 전부를 저장된 Parquet과 대조한다."""
-    path = staging / "train_counts.npz"
-    matrix = sparse.load_npz(path)
-    if not sparse.isspmatrix_csr(matrix) or matrix.shape != (train["users"], train["items"]):
-        raise RuntimeError("CSR format 또는 shape이 올바르지 않습니다")
-    nnz = train["user_item_pairs"]
-    if (matrix.data.size != nnz or matrix.indices.size != nnz
-            or matrix.indptr.size != matrix.shape[0] + 1 or matrix.indptr[-1] != nnz
-            or matrix.data.dtype != np.int64 or np.any(matrix.data <= 0)):
-        raise RuntimeError("CSR pointer, nnz 또는 data의 dtype·횟수가 올바르지 않습니다")
-    matrix.check_format(full_check=True)
-    if not matrix.has_canonical_format or np.any(np.diff(matrix.indptr) <= 0):
-        raise RuntimeError("CSR의 각 train 사용자 행은 비어 있지 않고 곡이 중복 없이 정렬돼야 합니다")
-    total = int(matrix.data.sum())
-    if total != train["events"]:
-        raise RuntimeError("CSR 횟수 합계가 정제된 train 사건 수와 다릅니다")
-
-    offset = 0
-    with pq.ParquetFile(staging / "train_interactions.parquet") as parquet:
-        for batch in parquet.iter_batches(batch_size=BATCH_ROWS):
-            users, items, counts = (column.to_numpy() for column in batch.columns)
-            end = offset + batch.num_rows
-            row_ids = np.searchsorted(matrix.indptr, np.arange(offset, end), side="right") - 1
-            if (not np.array_equal(users, row_ids) or not np.array_equal(items, matrix.indices[offset:end])
-                    or not np.array_equal(counts, matrix.data[offset:end])):
-                raise RuntimeError("다시 읽은 CSR 좌표·횟수가 train_interactions와 다릅니다")
-            offset = end
-    if offset != nnz:
-        raise RuntimeError("다시 읽은 CSR과 train_interactions의 nnz가 다릅니다")
-    return {"format": "csr", "shape": list(matrix.shape), "nnz": nnz, "sum_counts": total,
-            "data_dtype": str(matrix.data.dtype), "indices_dtype": str(matrix.indices.dtype),
-            "indptr_dtype": str(matrix.indptr.dtype), "canonical": True,
-            "matches_interactions_all_coordinates_and_values": True}
+        with reader, (staging / f"{table}.csv").open("wb") as stream:
+            stream.write(codecs.BOM_UTF8)
+            with arrow_csv.CSVWriter(stream, schema) as writer:
+                for batch in reader:
+                    if any(column.null_count for column in batch.columns):
+                        raise RuntimeError(f"{table}에서 NULL이 발견됐습니다")
+                    writer.write_batch(pa.RecordBatch.from_arrays(batch.columns, schema=schema))
 
 
 def target_users(con, period: str) -> list[int]:
@@ -221,37 +195,36 @@ def verify_package(con, staging: Path, train: dict, evaluation: dict, copying: d
         **{f"{p}_targets": evaluation[p]["target_pairs"] for p in PERIODS},
     }
     files = {}
-    for table, (_, order) in PARQUET_FILES.items():
-        path = staging / f"{table}.parquet"
-        schema, reader = ordered_batches(con, table)
-        with reader, pq.ParquetFile(path) as parquet:
-            if parquet.schema_arrow != schema or parquet.metadata.num_rows != expected_rows[table]:
-                raise RuntimeError(f"다시 읽은 {path.name}의 schema 또는 행 수가 다릅니다")
-            # write_batch가 쓴 row group을 저장된 순서대로 다시 읽어 대조한다.
-            for expected, group in zip_longest(reader, range(parquet.num_row_groups)):
-                if expected is None or group is None:
-                    raise RuntimeError(f"다시 읽은 {path.name}의 row group이 다릅니다")
-                actual = parquet.read_row_group(group)
-                if not actual.equals(pa.Table.from_arrays(expected.columns, schema=schema)):
+    for table, (_, order) in CSV_FILES.items():
+        path = staging / f"{table}.csv"
+        schema, expected_batches = ordered_batches(con, table)
+        rows = 0
+        with expected_batches:
+            for expected, actual in zip_longest(expected_batches, read_csv_batches(path, schema)):
+                if expected is None or actual is None:
+                    raise RuntimeError(f"다시 읽은 {path.name}의 행 수가 다릅니다")
+                expected = pa.RecordBatch.from_arrays(expected.columns, schema=schema)
+                if not actual.equals(expected):
                     raise RuntimeError(f"다시 읽은 {path.name}의 행 내용 또는 순서가 다릅니다")
-        files[path.name] = {**fingerprint(path), "rows": expected_rows[table],
+                rows += actual.num_rows
+        if rows != expected_rows[table]:
+            raise RuntimeError(f"다시 읽은 {path.name}의 행 수가 다릅니다")
+        files[path.name] = {**fingerprint(path), "rows": rows,
                             "columns": {f.name: str(f.type) for f in schema},
                             "column_order": schema.names, "nullable": False,
-                            "sorted_by": list(order), "compression": "zstd"}
+                            "sorted_by": list(order), "format": "csv",
+                            "encoding": "UTF-8 BOM", "header": True}
     for period in PERIODS:
         path = staging / f"{period}_users.csv"
         ids = target_users(con, period)
-        with path.open(encoding="utf-8", newline="") as stream:
+        with path.open(encoding="utf-8-sig", newline="") as stream:
             rows = list(csv.reader(stream, strict=True))
         expected = [["user_idx"], *[[str(user_idx)] for user_idx in ids]]
         if rows != expected or len(ids) != evaluation[period]["eligible_users"]:
             raise RuntimeError(f"다시 읽은 CSV가 {period}_targets의 고유 사용자와 다릅니다")
         files[path.name] = {**fingerprint(path), "rows": len(ids), "columns": {"user_idx": "decimal int32"},
-                            "column_order": ["user_idx"], "encoding": "UTF-8", "header": True,
+                            "column_order": ["user_idx"], "encoding": "UTF-8 BOM", "header": True,
                             "sorted_by": ["user_idx"]}
-    matrix = verify_csr(staging, train)
-    files["train_counts.npz"] = {**fingerprint(staging / "train_counts.npz"), **matrix,
-                                "axes": ["user_idx", "item_idx"]}
     files["README.md"] = {**fingerprint(staging / "README.md"), "format": "UTF-8 Markdown"}
     files["COPYING"] = fingerprint(staging / "COPYING")
     if files["COPYING"] != copying or files["README.md"]["sha256"] != base.sha256(PACKAGE_README):
@@ -318,13 +291,12 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
         split_sizes = {p["split"]: p["events"] for p in cleaning["partitions"]}
         evaluation = {p: build_evaluation(con, p, train["items"], expected_users, split_sizes[p])
                       for p in PERIODS}
-        write_parquet(con, staging)
+        write_csv(con, staging)
         for period in PERIODS:
-            with (staging / f"{period}_users.csv").open("w", encoding="utf-8", newline="") as stream:
+            with (staging / f"{period}_users.csv").open("w", encoding="utf-8-sig", newline="") as stream:
                 writer = csv.writer(stream, lineterminator="\n")
                 writer.writerow(["user_idx"])
                 writer.writerows((user_idx,) for user_idx in target_users(con, period))
-        write_csr(staging, train)
         shutil.copyfile(PACKAGE_README, staging / "README.md")
         shutil.copyfile(raw / "COPYING", staging / "COPYING")
         copying = next({k: entry[k] for k in ("bytes", "sha256")}
@@ -342,7 +314,7 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
         command = ["python", example_script.relative_to(REPO).as_posix(), "--variant", example_variant]
     command += ["--output-root", "<output-root>", "--version", version]
     manifest = {
-        "contract_version": "1.0.0", "dataset_version": version, "rules_version": "1.0.0",
+        "contract_version": "2.0.0", "dataset_version": version, "rules_version": "1.0.0",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "source": {"kind": "synthetic_example" if synthetic else "listenbrainz",
                    "provider": None if synthetic else "MetaBrainz Foundation / ListenBrainz",
@@ -360,8 +332,8 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
         },
         "mapping": {"start": 0, "dtype": "int32", "users": train["users"], "items": train["items"],
                     "user_id_order": "숫자 오름차순", "item_key_order": "UTF-8 byte tuple 오름차순",
-                    "users_sha256": files["users.parquet"]["sha256"],
-                    "items_sha256": files["items.parquet"]["sha256"]},
+                    "users_sha256": files["users.csv"]["sha256"],
+                    "items_sha256": files["items.csv"]["sha256"]},
         "evaluation": {
             "candidate_rule": "train 전체 catalog에서 해당 사용자의 원래 train 청취곡을 제외한 집합",
             "target_rule": "해당 기간의 고유 청취곡과 candidate 집합의 교집합",
@@ -376,9 +348,8 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
             "status": "passed",
             "scope": "패키지 생성과 재로딩 무결성",
             "checks": ["입력 bytes·SHA256과 cohort", "배타적 정제 제외와 split 보존 집계",
-                       "평가 사건·고유 쌍·cohort 집계", "Parquet schema·정렬·행 내용과 생성 테이블 대조",
-                       "CSV 사용자와 target 고유 사용자 대조", "CSR format·shape·nnz·canonical 정렬·합계",
-                       "CSR 전체 좌표·횟수와 저장된 interactions 대조", "복사한 패키지 문서 대조",
+                       "평가 사건·고유 쌍·cohort 집계", "CSV 헤더·자료형·정렬·전체 행 내용과 생성 테이블 대조",
+                       "CSV 사용자와 target 고유 사용자 대조", "복사한 패키지 문서 대조",
                        "입력·코드·설정 SHA256 보존"],
         },
         "execution": {
@@ -406,7 +377,7 @@ def main() -> None:
     parser.add_argument("--version", required=True, help="아직 존재하지 않는 데이터 버전")
     args = parser.parse_args()
     final = build_package(args.config, args.output_root, args.version)
-    print(f"{final}\ndataset_manifest.json SHA256 {base.sha256(final / 'dataset_manifest.json')}")
+    print(f"CSV 데이터셋 생성 및 재로딩 검증 완료\n{final}")
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
+import pyarrow.csv as arrow_csv
 import pyarrow.parquet as pq
 from scipy import sparse
 
@@ -192,13 +193,65 @@ def read_parquet(con, package: Path, table: str, entry: dict) -> dict:
     return compare_sets(con, f"expected_{table}", actual, schema.names)
 
 
-def read_evaluation_users(con, package: Path, period: str, entry: dict) -> dict:
+def read_csv(con, package: Path, table: str, entry: dict) -> dict:
+    """CSV 전체를 명시한 자료형으로 읽고 순서와 독립 기대값을 대조한다."""
+    path = package / f"{table}.csv"
+    fields, order = SCHEMAS[table]
+    schema = pa.schema([pa.field(name, dtype, nullable=False) for name, dtype in fields])
+    require_metadata(entry, {
+        "columns": {field.name: str(field.type) for field in schema},
+        "column_order": schema.names, "nullable": False, "sorted_by": order,
+        "format": "csv", "encoding": "UTF-8 BOM", "header": True,
+    }, path.name)
+    with path.open("rb") as stream:
+        if stream.read(3) != b"\xef\xbb\xbf":
+            raise ValueError(f"{path.name}에 UTF-8 BOM이 없습니다")
+    actual = f"stored_{table}"
+    con.from_arrow(pa.Table.from_batches([], schema=schema)).create(actual)
+    previous = -1
+    count = 0
+    with arrow_csv.open_csv(
+        path,
+        read_options=arrow_csv.ReadOptions(block_size=8 * 1024 * 1024),
+        parse_options=arrow_csv.ParseOptions(newlines_in_values=True),
+        convert_options=arrow_csv.ConvertOptions(
+            column_types={field.name: field.type for field in schema},
+            null_values=[], strings_can_be_null=False),
+    ) as reader:
+        if reader.schema.names != schema.names:
+            raise ValueError(f"{path.name}의 CSV 헤더·열 순서가 다릅니다")
+        for batch in reader:
+            if not batch.num_rows:
+                continue
+            if any(column.null_count for column in batch.columns):
+                raise ValueError(f"{path.name}에 NULL이 있습니다")
+            indices = [batch[name].to_numpy().astype(np.int64) for name in order]
+            if any(np.any(values < 0) for values in indices):
+                raise ValueError(f"{path.name}에 음수 인덱스가 있습니다")
+            keys = indices[0] if len(indices) == 1 else (indices[0] << 32) + indices[1]
+            if keys[0] <= previous or np.any(keys[1:] <= keys[:-1]):
+                raise ValueError(f"{path.name}의 ID가 중복되거나 정렬되지 않았습니다")
+            previous = keys[-1]
+            count += batch.num_rows
+            con.register("csv_batch", batch)
+            con.execute(f"INSERT INTO {actual} SELECT * FROM csv_batch")
+            con.unregister("csv_batch")
+    require_metadata(entry, {"rows": count}, path.name)
+    return compare_sets(con, f"expected_{table}", actual, schema.names)
+
+
+def read_evaluation_users(con, package: Path, period: str, entry: dict, *,
+                          encoding: str = "UTF-8") -> dict:
     path = package / f"{period}_users.csv"
     require_metadata(entry, {
         "columns": {"user_idx": "decimal int32"}, "column_order": ["user_idx"],
-        "encoding": "UTF-8", "header": True, "sorted_by": ["user_idx"],
+        "encoding": encoding, "header": True, "sorted_by": ["user_idx"],
     }, path.name)
-    with path.open(encoding="utf-8", newline="") as stream:
+    if encoding == "UTF-8 BOM":
+        with path.open("rb") as stream:
+            if stream.read(3) != b"\xef\xbb\xbf":
+                raise ValueError(f"{path.name}에 UTF-8 BOM이 없습니다")
+    with path.open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.reader(stream, strict=True)
         if next(reader, None) != ["user_idx"]:
             raise ValueError(f"{path.name}의 헤더가 다릅니다")
@@ -275,8 +328,11 @@ def read_csr(con, path: Path, train: dict, entry: dict) -> dict:
 
 
 def package_fingerprints(package: Path, manifest: dict) -> dict:
-    names = {f"{name}.parquet" for name in SCHEMAS} | {
-        "train_counts.npz", "validation_users.csv", "test_users.csv", "README.md", "COPYING"}
+    extension = "csv" if manifest["contract_version"] == "2.0.0" else "parquet"
+    names = {f"{name}.{extension}" for name in SCHEMAS} | {
+        "validation_users.csv", "test_users.csv", "README.md", "COPYING"}
+    if extension == "parquet":
+        names.add("train_counts.npz")
     if set(manifest["files"]) != names or {path.name for path in package.iterdir()} != (
             names | {"dataset_manifest.json"}):
         raise ValueError("패키지 또는 manifest의 파일 목록이 계약과 다릅니다")
@@ -329,9 +385,13 @@ def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None
         raise ValueError("manifest의 SHA256이 전달받은 값과 다릅니다")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if (manifest["dataset_version"] != package.name or manifest["input_files"] != original
-            or (manifest["contract_version"], manifest["rules_version"]) != ("1.0.0", "1.0.0")):
+            or manifest["contract_version"] not in ("1.0.0", "2.0.0")
+            or manifest["rules_version"] != "1.0.0"):
         raise ValueError("manifest의 데이터 버전·입력·계약·규칙이 다릅니다")
     files = manifest["files"]
+    csv_package = manifest["contract_version"] == "2.0.0"
+    extension = "csv" if csv_package else "parquet"
+    read_table = read_csv if csv_package else read_parquet
     before = package_fingerprints(package, manifest)
     verify_manifest_metadata(manifest, raw, reference_path)
     copying = next(entry for entry in original if entry["file"] == "COPYING")
@@ -347,24 +407,27 @@ def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None
         require_metadata(manifest["mapping"], {
             "start": 0, "dtype": "int32", "users": train["users"], "items": train["items"],
             "user_id_order": "숫자 오름차순", "item_key_order": "UTF-8 byte tuple 오름차순",
-            "users_sha256": files["users.parquet"]["sha256"],
-            "items_sha256": files["items.parquet"]["sha256"],
+            "users_sha256": files[f"users.{extension}"]["sha256"],
+            "items_sha256": files[f"items.{extension}"]["sha256"],
         }, "mapping")
         require_metadata(manifest["evaluation"], {
             "min_candidates": 10, "min_targets": 1,
             "user_exclusion_priority": ["no_train", "no_period_activity", "no_target",
                                        "fewer_than_10_candidates"],
         }, "evaluation")
-        differences = {name: read_parquet(con, package, name, files[f"{name}.parquet"])
+        differences = {name: read_table(con, package, name, files[f"{name}.{extension}"])
                        for name in ("users", "items", "train_interactions")}
-        csr = read_csr(con, package / "train_counts.npz", train, files["train_counts.npz"])
+        csr = None
+        if not csv_package:
+            csr = read_csr(con, package / "train_counts.npz", train, files["train_counts.npz"])
         evaluation = {}
         for period in PERIODS:
             evaluation[period] = build_expected_evaluation(con, period, train["items"])
             targets = f"{period}_targets"
-            differences[targets] = read_parquet(con, package, targets, files[f"{targets}.parquet"])
+            differences[targets] = read_table(con, package, targets, files[f"{targets}.{extension}"])
             differences[f"{period}_users"] = read_evaluation_users(
-                con, package, period, files[f"{period}_users.csv"])
+                con, package, period, files[f"{period}_users.csv"],
+                encoding="UTF-8 BOM" if csv_package else "UTF-8")
 
     clean_events = sum(p["events"] for p in partitions)
     raw_rows = input_validation["raw_rows"]
@@ -388,11 +451,12 @@ def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None
         and manifest["evaluation"]["min_targets"] == 1,
         "manifest_input_validation_matches": manifest["input_validation"] == input_validation,
         "manifest_evaluation_matches": manifest["evaluation"]["periods"] == evaluation,
-        "parquet_matches": all(not any(differences[name].values()) for name in SCHEMAS),
+        "data_tables_match": all(not any(differences[name].values()) for name in SCHEMAS),
         "csv_matches": all(not any(counts.values()) for period in PERIODS
                            for counts in differences[f"{period}_users"].values()),
-        "csr_matches": csr["mismatching_ordered_entries"] == 0,
     }
+    if csr is not None:
+        checks["csr_matches"] = csr["mismatching_ordered_entries"] == 0
     return {"matches": all(checks.values()), "dataset_version": manifest["dataset_version"],
             "manifest_sha256": manifest_digest, "checks": checks, "input_validation": input_validation,
             "cleaning": expected_cleaning, "evaluation": evaluation, "set_differences": differences,
@@ -404,9 +468,17 @@ def main() -> None:
     parser.add_argument("--config", type=Path, required=True, help="원본과 임시 저장 위치를 지정한 로컬 설정")
     parser.add_argument("--package", type=Path, required=True, help="검증할 버전별 패키지 폴더")
     parser.add_argument("--manifest-sha256", help="별도로 받은 manifest의 SHA256")
+    parser.add_argument("--report", type=Path, help="내부 검증 결과 JSON을 저장할 새 파일")
     args = parser.parse_args()
+    if args.report is not None and args.report.exists():
+        parser.error("기존 검증 기록을 보존하도록 새 --report 경로를 지정하세요")
     result = validate_dataset(args.config, args.package, manifest_sha256=args.manifest_sha256)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if args.report is not None:
+        with args.report.open("x", encoding="utf-8") as stream:
+            json.dump(result, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+    summary = {key: result[key] for key in ("matches", "dataset_version", "checks", "set_differences")}
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
     if not result["matches"]:
         raise SystemExit("원본 기준과 저장된 패키지가 일치하지 않습니다")
 

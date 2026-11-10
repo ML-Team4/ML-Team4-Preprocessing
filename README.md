@@ -1,6 +1,6 @@
 # ML Team4 공통 데이터 전처리
 
-인기 편향 완화를 통한 개인화 음악 추천 프로젝트의 공통 데이터 저장소다. ListenBrainz 8주 원본에서 `listenbrainz-8week-v1`을 생성하고 저장된 학습·평가 파일 전체를 원본과 독립 대조했다. [전체 전처리 보고서](reports/preprocessing-report.md)
+인기 편향 완화를 통한 개인화 음악 추천 프로젝트의 공통 데이터 저장소다. ListenBrainz 8주 원본에서 CSV 데이터셋 `listenbrainz-8week-v2`를 생성한다. 생성 명령을 실행하면 저장소 옆 `공유 데이터셋/listenbrainz-8week-v2/` 폴더에 학습·평가 CSV 7개가 저장된다. GitHub에서는 생성 코드와 사용 문서를 확인할 수 있다. [CSV 파일과 검증 결과](reports/csv-dataset-validation.md)
 
 ## 출처와 이용 조건
 
@@ -84,7 +84,7 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 
 ## 학습·평가 패키지 생성
 
-설치 후 저장소 루트에서 아래 명령으로 합성 입력을 검증한다. 테스트가 임시 폴더에 원본과 패키지를 생성하고 검사가 끝나면 정리한다.
+설치 후 저장소 루트에서 아래 명령으로 합성 입력을 검증한다. CSV 저장·재로딩, 기간 경계와 평가 정답을 검사한다.
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
@@ -96,27 +96,23 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 
 ```bash
 .venv/bin/python scripts/build_dataset.py --config config/paths.local.toml \
-  --output-root .cache/datasets --version listenbrainz-8week-v1
+  --output-root "../공유 데이터셋" --version listenbrainz-8week-v2
 ```
 
-생성기는 디스크 기반 DuckDB에서 공통 정제·분할을 이어받고, Arrow 배치로 필수 컬럼을 가진 ZSTD Parquet을 쓴다. SciPy로 저장한 CSR을 다시 열어 Parquet의 전체 좌표·값과 대조한다. 임시 폴더에서 재로딩 검사를 통과한 뒤 같은 출력 위치에 버전 폴더를 확정한다. manifest에는 데이터 버전과 파일 정보, 정제·평가 집계를 기록한다. [DuckDB Arrow 내보내기](https://duckdb.org/docs/1.4/guides/python/export_arrow), [PyArrow ParquetWriter](https://arrow.apache.org/docs/20.0/python/generated/pyarrow.parquet.ParquetWriter.html), [SciPy 희소 NPZ](https://docs.scipy.org/doc/scipy-1.15.3/reference/generated/scipy.sparse.save_npz.html)
+생성기는 공통 정제·시간 분할을 수행한 뒤 학습 기록·사용자 매핑·곡 정보·검증 정답·테스트 정답·기간별 평가 사용자 파일을 CSV로 저장한다. 헤더가 있고 UTF-8 BOM으로 인코딩하며 쉼표·따옴표·개행을 보존한다. 모든 CSV를 명시한 자료형으로 다시 읽어 전체 값과 정렬을 대조한 뒤 버전 폴더를 확정한다. 무결성·스키마·처리 집계는 manifest에 보관한다.
 
 ### 전체 원본 기준의 독립 검증
 
-생성기의 재로딩 검사는 파일과 생성 관계를 대조한다. 아래 명령은 원본에서 별도로 만든 학습 좌표·횟수·인기도와 두 평가 기간의 사용자·정답을 저장된 파일 전체와 대조한다. 기존 패키지는 읽기 전용으로 열며 `"matches": true`, 모든 누락·초과 0, CSR 좌표·값 차이 0을 확인한다.
+생성기의 재로딩 검사는 파일과 생성 관계를 대조한다. 아래 명령은 원본에서 별도로 만든 학습 좌표·횟수·인기도와 두 평가 기간의 사용자·정답을 저장된 파일 전체와 대조한다. 기존 패키지는 읽기 전용으로 열며 `"matches": true`, 모든 CSV의 누락·초과 0건을 확인한다.
 
 ```bash
 .venv/bin/python scripts/validate_dataset.py --config config/paths.local.toml \
-  --package .cache/datasets/listenbrainz-8week-v1
+  --package "../공유 데이터셋/listenbrainz-8week-v2"
 ```
 
 동일 버전의 저장 위치가 이미 있으면 생성 명령이 실행을 거부한다. 새로 생성해 비교할 때는 새 출력 루트를 지정한다. 새로 생성한 파일의 논리적 내용과 집계를 대조한다. 원본이 없는 모델 담당자는 [패키지 README](docs/dataset-package-readme.md)의 예제를 받은 패키지 폴더에서 실행한다.
 
-```bash
-.venv/bin/python -c 'from scipy.sparse import load_npz; m = load_npz(".cache/datasets/listenbrainz-8week-v1/train_counts.npz"); print(m.shape, m.nnz)'
-```
-
-기대 출력은 `(5000, 1525005) 2739292`이다. 모델 인수인계에는 [공통 ID와 평가 정의](docs/data-preprocessing-handoff.md)를 사용한다.
+학습 CSV는 2,739,292행이며 청취 횟수 합계는 6,623,584건이다. 사용자 5,000명과 곡 1,525,005개의 공통 ID를 사용한다. [패키지 README](docs/dataset-package-readme.md)의 예제로 CSV를 읽고 희소 행렬과 곡명을 확인한다. [공통 ID와 평가 정의](docs/data-preprocessing-handoff.md)를 두 모델에 동일하게 적용한다.
 
 ## 문서 안내
 
@@ -126,7 +122,8 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 - [전처리 타당성과 모델 적합성 추가 검토 (Markdown)](reports/model-readiness-review.md)
 - [입력 검증·정제·분할 실행 보고서](reports/cleaning-split-validation.md)
 - [정제 근거와 시간 분할 검증](reports/temporal-split-review.md)
-- [전체 학습·평가 패키지 생성과 독립 검증](reports/preprocessing-report.md)
+- [CSV 생성·검증 결과](reports/csv-dataset-validation.md)
+- [이전 패키지의 원본 대조 기록](reports/preprocessing-report.md)
 - [정제·분할 실행과 코드 재사용](docs/cleaning-split-guide.md)
 - [공통 전처리 기준](docs/preprocessing-plan.md)
 - [파일·ID·행렬·평가 데이터 규격](docs/data-contract.md)
@@ -135,6 +132,6 @@ sample_size는 진단 사례 개수이며 평가 후보 표본 추출과 관계�
 - [라이브러리·함수·매개변수와 출처](docs/audit-code-guide.md)
 - [진행 상황과 다음 시작 지점](PROGRESS.md)
 
-코드·문서와 Markdown 보고서를 Git에 저장한다. 원본·중간·전처리·모델 출력·캐시·개인 경로 설정·가상환경은 .gitignore로 제외한다. 진단 JSON은 `/reports/raw-data-audit.json`, `/reports/model-readiness-diagnostics.json` 두 경로만 정확히 제외하며 다른 JSON이나 향후 `dataset_manifest.json`을 확장자로 일괄 제외하지 않는다. 데이터 공유 공간과 최종 다운로드 경로는 아직 확정하지 않았다.
+코드·문서와 Markdown 보고서를 Git에 저장한다. 원본·중간·전처리·모델 출력·캐시·개인 경로 설정·가상환경은 .gitignore로 제외한다. 진단 JSON은 `/reports/raw-data-audit.json`, `/reports/model-readiness-diagnostics.json` 두 경로만 정확히 제외하며 다른 JSON이나 향후 `dataset_manifest.json`을 확장자로 일괄 제외하지 않는다. CSV 전달본은 로컬의 저장소 옆 공유 데이터셋 폴더에 있다. 팀의 외부 공유 공간은 별도로 정한다.
 
 추가 적합성 검사도 동일한 고정 전처리 규칙을 사용하고 임시 테이블은 삭제한다.

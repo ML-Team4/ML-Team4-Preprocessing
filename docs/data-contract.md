@@ -1,6 +1,6 @@
 # 공통 데이터 전달 규격
 
-계약 1.0.0을 실제 `listenbrainz-8week-v1` 파일 전체에 대조했다. 학습 사용자 5,000명, 곡 1,525,005개, 고유 학습 쌍 2,739,292개다. 모든 모델 담당자는 같은 데이터 버전과 공통 ID를 사용한다. [실측 규모와 검증 결과](../reports/preprocessing-report.md)
+CSV 전달 계약은 2.0.0이며 현재 데이터 버전은 `listenbrainz-8week-v2`다. 학습 사용자 5,000명, 곡 1,525,005개, 고유 학습 쌍 2,739,292개다. 모든 모델 담당자는 같은 데이터 버전과 공통 ID를 사용한다. [CSV 생성과 검증 결과](../reports/csv-dataset-validation.md)
 
 ## ID와 곡 식별
 
@@ -12,18 +12,17 @@ user_idx는 정제된 train에 이력이 있는 원본 user_id를 숫자 오름�
 
 ## 파일별 스키마
 
-Parquet은 null 없는 명시적 스키마와 ZSTD 압축을 기본으로 한다. 정렬은 읽기 순서의 계약이며 소비자가 필터링/병합하면 다시 정렬해야 한다. 문자열은 UTF-8이다.
+표형 데이터는 CSV 7개로 전달한다. 첫 행에 컬럼명을 포함하며 인코딩은 UTF-8 BOM이다. CSV를 읽을 때 아래 자료형을 지정하고 문자열의 기본 결측값 추론을 끈다. 쉼표·따옴표·개행은 CSV 인용 규칙으로 보존한다. 정렬은 읽기 순서의 계약이며 소비자가 필터링하거나 병합하면 다시 정렬해야 한다.
 
 | 파일 | 컬럼 및 자료형 | 행 단위와 정렬 |
 | --- | --- | --- |
-| train_interactions.parquet | user_idx int32, item_idx int32, listen_count int64 | 고유 user-item 쌍, user_idx → item_idx 오름차순 |
-| train_counts.npz | SciPy CSR, data int64, shape=(U,I) | 행=user_idx, 열=item_idx, 양의 원시 청취 횟수 |
-| users.parquet | user_idx int32, user_id int64 | user_idx 오름차순, 양쪽 모두 고유 |
-| items.parquet | item_idx int32, artist_name string, recording_name string, train_listener_count int32, artist_key string, recording_key string | item_idx 오름차순, 정규화 키 튜플 고유 |
-| validation_targets.parquet | user_idx int32, item_idx int32 | 검증 평가 사용자만의 중복 없는 정답 쌍, user_idx → item_idx |
-| test_targets.parquet | user_idx int32, item_idx int32 | 테스트 평가 사용자만의 중복 없는 정답 쌍, user_idx → item_idx |
-| validation_users.csv | user_idx, 10진 정수 | 헤더 포함 UTF-8, user_idx 오름차순, 중복 없음 |
-| test_users.csv | user_idx, 10진 정수 | 헤더 포함 UTF-8, user_idx 오름차순, 중복 없음 |
+| train_interactions.csv | user_idx int32, item_idx int32, listen_count int64 | 고유 user-item 쌍, user_idx → item_idx 오름차순 |
+| users.csv | user_idx int32, user_id int64 | user_idx 오름차순, 양쪽 모두 고유 |
+| items.csv | item_idx int32, artist_name string, recording_name string, train_listener_count int32, artist_key string, recording_key string | item_idx 오름차순, 정규화 키 튜플 고유 |
+| validation_targets.csv | user_idx int32, item_idx int32 | 검증 평가 사용자만의 중복 없는 정답 쌍, user_idx → item_idx |
+| test_targets.csv | user_idx int32, item_idx int32 | 테스트 평가 사용자만의 중복 없는 정답 쌍, user_idx → item_idx |
+| validation_users.csv | user_idx, 10진 정수 | 헤더 포함 UTF-8 BOM, user_idx 오름차순, 중복 없음 |
+| test_users.csv | user_idx, 10진 정수 | 헤더 포함 UTF-8 BOM, user_idx 오름차순, 중복 없음 |
 | dataset_manifest.json | UTF-8 JSON object | 버전·생성 기준·집계·파일 해시·실행 추적 |
 
 items의 artist_key/recording_key는 ID용 정규화 필드이며 기본 4컬럼에 추가한 필드다. artist_name/recording_name은 train에서 선택한 대표 원문 이름 쌍이다. 대표 선택은 [전처리 계획](preprocessing-plan.md)의 사건별 원문 선택 → 빈도 내림차순 → UTF-8 바이트 동률 정렬을 따른다. 표시 이름에서 ID를 역추정하지 않는다. 추가 원문 표기 파일이나 제외 사용자 기록을 만들면 데이터 공간에 두고 manifest에 스키마를 추가한다.
@@ -32,11 +31,11 @@ items의 artist_key/recording_key는 ID용 정규화 필드이며 기본 4컬럼
 
 listen_count는 중복 처리 후 **train에 남은 서로 다른 청취 시각 사건 수**다. 로그값, binary preference, confidence, IPS, 역인기도 가중치를 저장하지 않는다. 모델 담당자가 이 횟수와 train_listener_count로 필요한 변환을 계산한다. train_listener_count는 해당 item_idx의 고유 학습 사용자 수이며 총 재생 수와 다르다. 모든 항목에 1 ≤ train_listener_count ≤ U가 성립한다.
 
-## CSR 무결성
+## CSV에서 학습 행렬 구성
 
-`scipy.sparse.load_npz`로 CSR을 읽는다. `indices`는 행마다 item_idx 오름차순이고 중복 열·명시적 0은 없다. `indptr[0]=0`, `indptr[-1]=nnz`, 길이는 U+1이다. 구조 인덱스는 SciPy가 선택한 int32 또는 int64를 허용하고 실제 자료형을 manifest에 기록한다. data의 int64는 고정한다. v1에서 `indices`와 `indptr`는 모두 int32다.
+모델 담당자는 train_interactions.csv의 user_idx·item_idx·listen_count를 사용해 shape=(U,I)의 SciPy CSR을 메모리에 구성할 수 있다. U와 I는 users.csv와 items.csv의 행 수다. [패키지 로딩 예제](dataset-package-readme.md)에 실행 가능한 코드가 있다.
 
-`nnz == train_interactions 행 수`, `sum(data) == sum(listen_count) == 정제된 train 사건 수`를 검증한다. 모든 집계 행에 대해 `matrix[user_idx,item_idx] == listen_count`가 성립해야 한다. 사용자 행 수 U와 항목 열 수 I는 매핑 파일 행 수와 일치한다. 사용자×곡 dense 행렬을 전달하거나 생성하지 않는다.
+고유 사용자·곡 좌표가 한 번씩 저장되고 횟수가 양수여야 한다. 학습 CSV 행 수는 고유 학습 쌍 수, listen_count 합계는 정제된 train 사건 수와 같다. CSV 전체 좌표·횟수·정렬을 생성 관계 및 원본에서 독립적으로 산출한 기대값에 대조한다. 모델이 만든 CSR에서도 nnz와 횟수 합계를 대조할 수 있다.
 
 ## 시간 구간과 평가 정의
 
@@ -74,11 +73,10 @@ E는 해당 기간의 평가 사용자, T_u는 정답 집합, L_u는 추천 순�
 | 처리 | 정규화 코드포인트·Unicode/엔진 버전, 중복 키와 대표 이름 규칙, 제외 사유·처리 전후 통계 |
 | 분할 | UTC의 start_inclusive/end_exclusive, train 고정·재학습 없음 |
 | 매핑 | ID 시작 0·정렬·자료형, U/I, 사용자 및 곡 매핑 파일 SHA256 |
-| 행렬 | format=csr, shape, nnz, data/indices/indptr dtype, sum_counts, canonical 검사 결과 |
-| 파일 | 상대 파일명, bytes, SHA256, rows(행렬은 shape/nnz), 컬럼·자료형·정렬 |
+| 파일 | 상대 파일명, bytes, SHA256, rows, 컬럼·자료형·정렬, CSV 형식·인코딩·헤더 여부 |
 | 평가 | 후보·정답 정의, 기간별 사용자·정답 수, 제외 규모·분모·중복 여부 |
 | 추적 | Git branch/HEAD(없으면 null), dirty 상태, 실제 생성 코드와 설정의 해시, Python·의존성·OS·명령·실행 결과 |
 
-manifest는 자기 자신의 SHA256을 내부에 넣지 않는다. 데이터 버전 묶음 전체를 검증할 때 manifest의 SHA256은 공유 메시지/별도 체크섬에 기록한다. 개인 절대 경로·토큰·사용자 원본 ID 목록을 manifest나 Git 문서에 넣지 않는다. 파일 내용이나 ID 규칙이 바뀌면 데이터 버전을 올리고 모든 파일을 같은 버전으로 함께 전달한다.
+manifest는 자기 자신의 SHA256을 내부에 넣지 않는다. 데이터 버전 묶음 전체를 검증할 때 manifest의 SHA256은 내부 검증 기록에 보관한다. 문서와 완료 설명에는 검사 범위와 결과를 요약한다. 개인 절대 경로·토큰·사용자 원본 ID 목록을 manifest나 Git 문서에 넣지 않는다. 파일 내용이나 ID 규칙이 바뀌면 데이터 버전을 올리고 모든 파일을 같은 버전으로 함께 전달한다.
 
-`validation.status`는 생성기의 저장·재로딩 검사 상태다. 원본 기준 독립 검증과 전달 가능 여부는 해당 데이터 버전과 함께 [전체 전처리 보고서](../reports/preprocessing-report.md)에 기록한다.
+`validation.status`는 생성기의 저장·재로딩 검사 상태다. 원본 기준 독립 검증과 전달 가능 여부는 해당 데이터 버전과 함께 [CSV 생성·검증 보고서](../reports/csv-dataset-validation.md)에 기록한다.
