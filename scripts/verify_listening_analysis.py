@@ -309,7 +309,7 @@ def verify(package: Path, output: Path, reproduce: bool) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--package", required=True, type=Path, help="분석에 사용한 CSV 패키지")
+    parser.add_argument("--package", default=Path("datasets/listenbrainz-preprocessing"), type=Path, help="분석에 사용한 CSV 패키지")
     parser.add_argument("--output-dir", default=eda.ROOT / "reports/eda", type=Path, help="검사할 EDA 결과 폴더")
     parser.add_argument("--reproduce", action="store_true", help="별도 경로에서 재실행해 모든 생성 결과를 대조")
     args = parser.parse_args()

@@ -1,6 +1,6 @@
 # 원본 데이터 점검 결과
 
-이 문서는 `scripts/audit_raw_data.py`의 실제 실행 결과다. 정규화·중복 제거 결과는 임시 진단 집계이며 최종 전처리 전달본은 아직 생성하지 않았다. 모든 날짜는 UTC다.
+이 문서는 `scripts/audit_raw_data.py`의 실제 실행 결과다. 원본 통계와 고정 규칙을 적용한 진단 집계이며, 배포 CSV의 생성·검증 결과는 [CSV 검증 보고서](csv-dataset-validation.md)에 있다. 모든 날짜는 UTC다.
 
 ## 검증 범위와 근거
 
@@ -361,4 +361,4 @@ Parquet 전체를 읽어 스키마·통계·해시를 검사했다. 함께 제�
 | "2026-10-10" | 147775 | 2808 |
 | "2026-10-11" | 130962 | 2637 |
 
-규칙과 전달 규격은 `docs/preprocessing-plan.md`, `docs/data-contract.md`를 따른다. 원본 사용자 식별자는 보고서에 싣지 않았다.
+규칙과 전달 규격은 `docs/preprocessing-rules.md`, `docs/data-contract.md`를 따른다. 원본 사용자 식별자는 보고서에 싣지 않았다.

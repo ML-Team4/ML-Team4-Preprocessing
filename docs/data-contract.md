@@ -1,6 +1,6 @@
 # 공통 데이터 전달 규격
 
-CSV 전달 계약은 2.0.0이며 현재 데이터 버전은 `listenbrainz-8week-v2`다. 학습 사용자 5,000명, 곡 1,525,005개, 고유 학습 쌍 2,739,292개다. 모든 모델 담당자는 같은 데이터 버전과 공통 ID를 사용한다. [CSV 생성과 검증 결과](../reports/csv-dataset-validation.md)
+CSV 전달 계약은 2.0.0이며 현재 데이터 버전은 `listenbrainz-preprocessing`다. 학습 사용자 5,000명, 곡 1,525,005개, 고유 학습 쌍 2,739,292개다. 모든 모델 담당자는 같은 데이터 버전과 공통 ID를 사용한다. [CSV 생성과 검증 결과](../reports/csv-dataset-validation.md)
 
 ## ID와 곡 식별
 
@@ -25,7 +25,7 @@ user_idx는 정제된 train에 이력이 있는 원본 user_id를 숫자 오름�
 | test_users.csv | user_idx, 10진 정수 | 헤더 포함 UTF-8 BOM, user_idx 오름차순, 중복 없음 |
 | dataset_manifest.json | UTF-8 JSON object | 버전·생성 기준·집계·파일 해시·실행 추적 |
 
-items의 artist_key/recording_key는 ID용 정규화 필드이며 기본 4컬럼에 추가한 필드다. artist_name/recording_name은 train에서 선택한 대표 원문 이름 쌍이다. 대표 선택은 [전처리 계획](preprocessing-plan.md)의 사건별 원문 선택 → 빈도 내림차순 → UTF-8 바이트 동률 정렬을 따른다. 표시 이름에서 ID를 역추정하지 않는다. 추가 원문 표기 파일이나 제외 사용자 기록을 만들면 데이터 공간에 두고 manifest에 스키마를 추가한다.
+items의 artist_key/recording_key는 ID용 정규화 필드이다. artist_name/recording_name은 train에서 선택한 대표 원문 이름 쌍이다. 대표 선택은 [전처리 기준](preprocessing-rules.md)의 사건별 원문 선택 → 빈도 내림차순 → UTF-8 바이트 동률 정렬을 따른다. 표시 이름에서 ID를 역추정하지 않는다. 추가 원문 표기 파일이나 제외 사용자 기록을 만들면 데이터 공간에 두고 manifest에 스키마를 추가한다.
 
 원문 표시 이름에는 개행·제어문자·마크업 기호가 있을 수 있다. 소비 코드는 출력 형식에 맞게 이스케이프하고, 화면 표시상의 정리를 ID 키 변경으로 연결하지 않는다. 이름 이상 플래그나 동시각 다곡 플래그를 추가하더라도 공통 학습·평가 항목을 임의로 삭제하지 않는다.
 
@@ -33,7 +33,7 @@ listen_count는 중복 처리 후 **train에 남은 서로 다른 청취 시각 
 
 ## CSV에서 학습 행렬 구성
 
-모델 담당자는 train_interactions.csv의 user_idx·item_idx·listen_count를 사용해 shape=(U,I)의 SciPy CSR을 메모리에 구성할 수 있다. U와 I는 users.csv와 items.csv의 행 수다. [패키지 로딩 예제](dataset-package-readme.md)에 실행 가능한 코드가 있다.
+모델 담당자는 train_interactions.csv의 user_idx·item_idx·listen_count를 사용해 shape=(U,I)의 SciPy CSR을 메모리에 구성할 수 있다. U와 I는 users.csv와 items.csv의 행 수다. [팀원용 로딩 예제](data-preprocessing-handoff.md#폴더-한-곳을-지정하는-실행-예제)에 실행 가능한 코드가 있다.
 
 고유 사용자·곡 좌표가 한 번씩 저장되고 횟수가 양수여야 한다. 학습 CSV 행 수는 고유 학습 쌍 수, listen_count 합계는 정제된 train 사건 수와 같다. CSV 전체 좌표·횟수·정렬을 생성 관계 및 원본에서 독립적으로 산출한 기대값에 대조한다. 모델이 만든 CSR에서도 nnz와 횟수 합계를 대조할 수 있다.
 

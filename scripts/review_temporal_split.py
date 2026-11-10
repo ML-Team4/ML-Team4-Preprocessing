@@ -6,13 +6,15 @@ import json
 from pathlib import Path
 
 import preprocess_events as events
+import raw_inputs
 
 EVENT_KEY = "user_id, listened_at, artist_key, recording_key"
 TRACK_KEY = "artist_key, recording_key"
 
 
-def build_reference(con, parquet: Path) -> None:
+def build_reference(con, raw: Path) -> None:
     """생산 코드의 분할 경계, 정규화 함수, 분류 관계를 읽지 않고 원본을 계산한다."""
+    raw_inputs.bind_raw(con, raw, "review_source")
     con.execute("""CREATE TABLE review_periods AS SELECT * FROM (VALUES
         ('train',       TIMESTAMP '2026-08-17', TIMESTAMP '2026-09-28'),
         ('validation',  TIMESTAMP '2026-09-28', TIMESTAMP '2026-10-05'),
@@ -25,7 +27,7 @@ def build_reference(con, parquet: Path) -> None:
         WITH names AS (
             SELECT user_id, listened_at, artist_name, recording_name,
                 review_name(artist_name) AS artist_key, review_name(recording_name) AS recording_key
-            FROM read_parquet(?)
+            FROM review_source
         )
         SELECT *, CASE
             WHEN user_id IS NULL OR listened_at IS NULL OR artist_name IS NULL OR recording_name IS NULL
@@ -35,7 +37,7 @@ def build_reference(con, parquet: Path) -> None:
             WHEN artist_key = '' OR recording_key = '' THEN 'empty_name'
             ELSE 'valid'
         END AS category
-        FROM names""", [str(parquet)])
+        FROM names""")
     con.execute(f"""CREATE TABLE review_events AS
         SELECT {EVENT_KEY}, count(*) AS valid_rows FROM review_rows
         WHERE category = 'valid' GROUP BY {EVENT_KEY}""")
@@ -187,15 +189,16 @@ def review_cohort(con) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--config", type=Path, default=raw_inputs.DEFAULT_CONFIG)
     args = parser.parse_args()
     settings = events.read_settings(args.config)
     raw_dir = settings["raw_dir"]
-    before = events.verify_input_files(raw_dir, events.read_reference())
+    before = events.verify_input_files(raw_dir, events.read_reference(
+        raw_inputs.resolve_reference(raw_dir, events.REFERENCE)))
 
     with events.working_connection(settings) as con:
         inputs = events.validate_input_tables(con, raw_dir)
-        build_reference(con, raw_dir / "listens_8weeks_5000users.parquet")
+        build_reference(con, raw_dir)
         production = events.build_clean_events(con)
         comparison = compare_partitions(con)
         cleaning = review_cleaning(con)

@@ -228,8 +228,9 @@ class DatasetBuildTest(unittest.TestCase):
         consumer_code = (package / "README.md").read_text().split("```python\n", 1)[1].split("```", 1)[0]
         result = subprocess.run([sys.executable, "-c", consumer_code], cwd=package,
                                 check=True, capture_output=True, text=True)
-        self.assertIn("baseline (5, 11) 15", result.stdout)
-        self.assertIn("test 첫 평가 사용자의 target 수 2", result.stdout)
+        first_item = read_table(package / "items.csv").slice(0, 1).to_pylist()[0]
+        self.assertEqual(result.stdout.strip(), f"0 {first_item['recording_name']} "
+                         f"{first_item['artist_name']} {first_item['train_listener_count']}")
 
     def test_csv_names_and_large_integer_roundtrip(self):
         names = ["쉼표,가수", '따옴표"가수', "개행\n가수", "NA", "NULL", "null", "곡\r\n제목"]
