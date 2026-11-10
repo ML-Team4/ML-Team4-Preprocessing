@@ -9,18 +9,21 @@ import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from threading import Barrier
 from unittest.mock import patch
 
 import duckdb
 import numpy as np
+import pyarrow as pa
 import pyarrow.parquet as pq
 from scipy import sparse
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "scripts"))
 import build_dataset as build
+import validate_dataset as independent
 
 ARTIST = "Café"
 TRAIN = "2026-08-17 00:00:00"
@@ -71,9 +74,9 @@ def fixture_rows(variant):
     return rows
 
 
-def run_example(output_root, version, variant="original", *, rows=None):
-    """별도 가상 원본·입력 기준을 사용하고 실제 패키지 생성 경로를 호출한다."""
-    rows = fixture_rows(variant) if rows is None else rows
+@contextmanager
+def example_input(rows):
+    """합성 원본과 입력 기준을 사용하는 동안 임시 폴더를 보존한다."""
     cohort = sorted({user_id for user_id, *_ in rows})
     with tempfile.TemporaryDirectory(prefix="dataset-input-") as folder:
         fixture = Path(folder)
@@ -100,9 +103,14 @@ def run_example(output_root, version, variant="original", *, rows=None):
             for r in build.common.fingerprint_inputs(raw)), encoding="utf-8")
         config = fixture / "config.toml"
         config.write_text('raw_dir = "raw"\ncache_dir = "cache"\n', encoding="utf-8")
-        return build.build_package(config, output_root, version, reference_path=reference,
-                                   expected_users=len(cohort), example_script=Path(__file__).resolve(),
-                                   example_variant=variant)
+        yield {"config": config, "reference_path": reference, "expected_users": len(cohort)}
+
+
+def run_example(output_root, version, variant="original", *, rows=None):
+    """합성 원본으로 실제 패키지 생성 경로를 호출한다."""
+    with example_input(fixture_rows(variant) if rows is None else rows) as source:
+        return build.build_package(output_root=output_root, version=version, **source,
+                                   example_script=Path(__file__).resolve(), example_variant=variant)
 
 
 def pairs(path):
@@ -193,6 +201,117 @@ class DatasetBuildTest(unittest.TestCase):
                              (shuffled / f"{period}_users.csv").read_bytes())
         self.assertEqual(pairs(future / "validation_targets.parquet"), [(0, 3)])
         self.assertEqual(pairs(future / "test_targets.parquet"), [])
+
+    def test_independent_validation_rejects_changed_contents_with_updated_hashes(self):
+        with example_input(fixture_rows("original")) as source:
+            package = build.build_package(output_root=self.output, version="verified", **source)
+            result = independent.validate_dataset(package=package, **source)
+            self.assertTrue(result["matches"], result)
+            self.assertEqual(result["evaluation"]["validation"]["target_pairs"], 1)
+            self.assertEqual(result["evaluation"]["test"]["target_pairs"], 3)
+
+            # 규모와 파일 해시 검사가 통과해도 같은 값의 다른 좌표와 같은 합계의 다른 횟수를 잡아낸다.
+            targets = package / "validation_targets.parquet"
+            original = pq.read_table(targets)
+            pq.write_table(pa.Table.from_arrays([original["user_idx"], pa.array([2], type=pa.int32())],
+                                               schema=original.schema), targets, compression="zstd")
+            users = package / "test_users.csv"
+            users.write_text("user_idx\n1\n3\n", encoding="utf-8")
+            counts = package / "train_counts.npz"
+            matrix = sparse.load_npz(counts)
+            matrix.data[0] -= 1
+            matrix.data[1] += 1
+            sparse.save_npz(counts, matrix)
+            manifest_path = package / "dataset_manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for path in (targets, users, counts):
+                manifest["files"][path.name].update(build.fingerprint(path))
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            changed = independent.validate_dataset(package=package, **source)
+            self.assertFalse(changed["matches"])
+            self.assertEqual(changed["set_differences"]["validation_targets"], {"missing": 1, "extra": 1})
+            self.assertEqual(changed["set_differences"]["test_users"], {
+                "expected_users": {"missing": 1, "extra": 1},
+                "stored_target_users": {"missing": 1, "extra": 1},
+            })
+            self.assertEqual(changed["csr"]["mismatching_ordered_entries"], 2)
+
+    def test_independent_validation_rejects_manifest_metadata_changes(self):
+        changes = [
+            (("mapping", "start"), 1), (("mapping", "users"), 0), (("mapping", "items"), 0),
+            (("mapping", "dtype"), "int64"), (("mapping", "users_sha256"), "0" * 64),
+            (("mapping", "items_sha256"), "0" * 64),
+            (("files", "items.parquet", "column_order"), ["item_idx"]),
+            (("files", "items.parquet", "columns"), {"item_idx": "string"}),
+            (("files", "items.parquet", "sorted_by"), ["artist_key"]),
+            (("files", "items.parquet", "nullable"), True),
+            (("files", "items.parquet", "compression"), "snappy"),
+            (("files", "test_users.csv", "columns"), {"user_idx": "string"}),
+            (("files", "test_users.csv", "header"), False),
+            (("files", "test_users.csv", "encoding"), "UTF-16"),
+            (("files", "train_counts.npz", "axes"), ["item_idx", "user_idx"]),
+            (("files", "train_counts.npz", "format"), "csc"),
+            (("source", "license"), "unsupported"),
+            (("source", "snapshot_utc"), "2000-01-01"),
+            (("execution", "source_and_config_sha256"), {}),
+            (("execution", "source_and_config_sha256", "scripts/build_dataset.py"), "invalid"),
+            (("execution", "source_and_config_sha256", "input_reference"), "0" * 64),
+            (("evaluation", "user_exclusion_priority"), []),
+        ]
+        with example_input(fixture_rows("original")) as source:
+            package = build.build_package(output_root=self.output, version="metadata", **source)
+            path = package / "dataset_manifest.json"
+            original = path.read_text(encoding="utf-8")
+            for keys, value in changes:
+                with self.subTest(field="/".join(keys)):
+                    manifest = json.loads(original)
+                    target = manifest
+                    for key in keys[:-1]:
+                        target = target[key]
+                    target[keys[-1]] = value
+                    path.write_text(json.dumps(manifest), encoding="utf-8")
+                    with self.assertRaises(ValueError):
+                        independent.validate_dataset(package=package, **source)
+            path.write_text(original, encoding="utf-8")
+            self.assertTrue(independent.validate_dataset(package=package, **source)["matches"])
+
+    def test_independent_validation_checks_npz_arrays_before_scipy(self):
+        with example_input(fixture_rows("original")) as source:
+            package = build.build_package(output_root=self.output, version="csr-structure", **source)
+            path = package / "train_counts.npz"
+            with np.load(path, allow_pickle=False) as stored:
+                original = {name: stored[name] for name in stored.files}
+            manifest_path = package / "dataset_manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for name in ("data", "indices", "indptr"):
+                with self.subTest(array=name):
+                    changed = dict(original)
+                    changed[name] = np.append(original[name], np.array([0], dtype=original[name].dtype))
+                    np.savez_compressed(path, **changed)
+                    manifest["files"][path.name].update(build.fingerprint(path))
+                    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                    with patch.object(independent.sparse, "load_npz") as loader:
+                        with self.assertRaisesRegex(ValueError, "배열 차원 또는 길이"):
+                            independent.validate_dataset(package=package, **source)
+                        loader.assert_not_called()
+
+            # 계약에서 허용한 int64 구조 인덱스도 소비자 API의 자료형 변환과 무관하게 검증한다.
+            original["indices"] = original["indices"].astype(np.int64)
+            original["indptr"] = original["indptr"].astype(np.int64)
+            np.savez_compressed(path, **original)
+            manifest["files"][path.name].update(build.fingerprint(path))
+            manifest["files"][path.name].update(indices_dtype="int64", indptr_dtype="int64")
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            self.assertTrue(independent.validate_dataset(package=package, **source)["matches"])
+
+    def test_independent_validation_accepts_empty_train_and_evaluation(self):
+        for name, rows in (
+                ("empty-train", [(10, TEST, ARTIST, "future only")]),
+                ("empty-evaluation", [(10, TRAIN, ARTIST, "train only")])):
+            with self.subTest(name=name), example_input(rows) as source:
+                package = build.build_package(output_root=self.output, version=name, **source)
+                self.assertTrue(independent.validate_dataset(package=package, **source)["matches"])
 
     def test_validation_failure_cleans_staging_and_reuse_preserves_version(self):
         version = "guarded"

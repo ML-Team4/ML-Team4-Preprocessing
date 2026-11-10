@@ -2,17 +2,6 @@
 
 최종 전달 패키지 생성 전의 전체 입력 검증·임시 정제 실행이다. 원본 사용자 ID·개인별 기록·개인 경로는 포함하지 않는다.
 
-## 입력 파일 대조
-
-| 파일 | bytes | SHA256 |
-| --- | --- | --- |
-| listens_8weeks_5000users.parquet | 144828609 | `4beecfca926a472081b70bcc50c2a20193756a90f9e8dc84336076e86b72e3c3` |
-| README.txt | 5183 | `fd8104ccfd16875bac897640464d7927ffce8c2057016a53cd6b9bf5625d5e7e` |
-| selected_users.csv | 76347 | `6ca4013d636ac7c16aa52ce6fa1e9fa670df1a4aca8eda64ad9f30f45cbe94a5` |
-| source_manifest.json | 306507 | `7e0af4eb5328ab661e66efc7bf9378d74cb8c8e1a377d3792ac93889765ec526` |
-| verified_8week_summary.json | 7606 | `ac897b3ee55bfd6aa2145dfd16c3eb7705604f6cbaa73646cafdc33d980a445f` |
-| COPYING | 6390 | `75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea` |
-
 ## 입력 스키마·선정 사용자
 
 ```json
@@ -136,28 +125,6 @@
   },
   "events_removed_by_flags": 0,
   "accounts_merged": 0
-}
-```
-
-## 실행 추적
-
-```json
-{
-  "finished_utc": "2026-11-08T08:47:36.938334+00:00",
-  "elapsed_seconds": 19.71,
-  "peak_rss_bytes": 3041918976,
-  "python": "3.13.7",
-  "duckdb": "1.4.4",
-  "memory_limit": "3GB",
-  "threads": 2,
-  "branch": "work/preprocessing",
-  "head_at_execution": "c28cdd191e5b928e4345ff09635e6d3c37e35a80",
-  "uncommitted_at_execution": true,
-  "script_sha256": "e04bc6c8d69a548d3f30327e625978072acfbd700606b113121ce3a7b916c9cd",
-  "normalizer_script_sha256": "929c5f0ed6ad9474ec21eaea0f03cc002be53fde11665480daf1087f8b0dfa40",
-  "config_sha256": "b332624f80c1be79824d0b8ee9f1d9561f5336f9f7fd311ec1a5e7fec76ab3c5",
-  "inputs_unchanged": true,
-  "final_datasets_created": false
 }
 ```
 

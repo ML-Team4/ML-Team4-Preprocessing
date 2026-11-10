@@ -8,36 +8,6 @@ Parquet 전체를 읽어 스키마·통계·해시를 검사했다. 함께 제�
 
 부속 README·source_manifest·기존 검증 JSON의 추출 방법 및 공식 덤프 규모는 **기존 설명에 기록된 사실**이다. 원본 TAR, 20,284명 전체 후보군, 표본의 상위 5,000명 선정 순위는 다시 검증하지 않았다. 로컬 CSV와 현재 학습 이력의 일치 여부만 직접 검증했다. TIMESTAMP에는 시간대가 내장되어 있지 않아 UTC 해석은 부속 자료의 명세를 따른다.
 
-## 실행 환경
-
-| 항목 | 값 |
-| --- | --- |
-| "started_note" | "finished_utc is report generation time" |
-| "finished_utc" | "2026-11-07T07:53:33.304587+00:00" |
-| "python" | "3.13.7" |
-| "duckdb" | "1.4.4" |
-| "platform" | "Darwin arm64" |
-| "memory_limit" | "3GB" |
-| "threads" | 2 |
-| "sample_size" | 5 |
-| "elapsed_seconds" | 36.43 |
-| "peak_rss_bytes" | 2622668800 |
-| "normalization" | "NFC + fixed 29 whitespace codepoints -&gt; ASCII space + strip" |
-| "python_unicode_version" | "15.1.0" |
-| "whitespace_codepoints" | ["U+0009", "U+000A", "U+000B", "U+000C", "U+000D", "U+001C", "U+001D", "U+001E", "U+001F", "U+0020", "U+0085", "U+00A0", "U+1680", "U+2000", "U+2001", "U+2002", "U+2003", "U+2004", "U+2005", "U+2006", "U+2007", "U+2008", "U+2009", "U+200A", "U+2028", "U+2029", "U+202F", "U+205F", "U+3000"] |
-| "final_preprocessing_files_created" | False |
-
-## 입력 파일 해시와 불변성
-
-| file | bytes | sha256 | unchanged |
-| --- | --- | --- | --- |
-| "listens_8weeks_5000users.parquet" | 144828609 | "4beecfca926a472081b70bcc50c2a20193756a90f9e8dc84336076e86b72e3c3" | True |
-| "README.txt" | 5183 | "fd8104ccfd16875bac897640464d7927ffce8c2057016a53cd6b9bf5625d5e7e" | True |
-| "selected_users.csv" | 76347 | "6ca4013d636ac7c16aa52ce6fa1e9fa670df1a4aca8eda64ad9f30f45cbe94a5" | True |
-| "source_manifest.json" | 306507 | "7e0af4eb5328ab661e66efc7bf9378d74cb8c8e1a377d3792ac93889765ec526" | True |
-| "verified_8week_summary.json" | 7606 | "ac897b3ee55bfd6aa2145dfd16c3eb7705604f6cbaa73646cafdc33d980a445f" | True |
-| "COPYING" | 6390 | "75f3c90d6fa833817f19d019b35807687c3ed1c0b858b5f274625e96dda24bea" | True |
-
 ## 컬럼과 실제 자료형
 
 | column_name | column_type | null | key | default | extra |
@@ -390,14 +360,5 @@ Parquet 전체를 읽어 스키마·통계·해시를 검사했다. 함께 제�
 | "2026-10-09" | 159949 | 2983 |
 | "2026-10-10" | 147775 | 2808 |
 | "2026-10-11" | 130962 | 2637 |
-
-## 코드 추적
-
-| 항목 | 값 |
-| --- | --- |
-| "head" | null |
-| "branch" | "work/data-audit" |
-| "status" | "?? .gitignore\n?? config/\n?? reports/\n?? requirements.txt\n?? scripts/\n?? tests/" |
-| "audit_script_sha256" | "929c5f0ed6ad9474ec21eaea0f03cc002be53fde11665480daf1087f8b0dfa40" |
 
 규칙과 전달 규격은 `docs/preprocessing-plan.md`, `docs/data-contract.md`를 따른다. 원본 사용자 식별자는 보고서에 싣지 않았다.

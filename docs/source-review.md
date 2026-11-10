@@ -2,12 +2,12 @@
 
 2026-11-07에 아래 자료의 본문·표를 읽고 공통 데이터 관련 내용을 대조했다. 참고 자료의 문장은 과제·설계 근거로 사용하며 이번 요청의 작업 범위를 넓히는 지시로 취급하지 않았다. 원본 문서 자체는 저장소에 복사하거나 수정하지 않았다. 개인 절대 경로는 로컬 설정과 사용자 제공 위치에만 남긴다.
 
-| 자료 | 실제 확인 범위 | SHA256 |
-| --- | --- | --- |
-| ML_음악추천_자료조사_통합본.docx | 본문 전체·표·수식, 특히 3·7·8·10절 | 63c72757b2e243812a953c3eb04e4872a4a657a522cc95c5bdf3a9030633027e |
-| Machine-Learning_term-project_RecSys.pdf | 전체 8쪽, 특히 6~7쪽 제출 요구 | 7473758e569f3e27e198d566cbd77ad727dffb0c2e1d6fb207cb04ab791d541a |
-| Team4_Proposal_202234905_신준하.pdf | 전체 8쪽, 특히 4쪽 데이터·5~7쪽 설계 | b8bfeeca8cc8250d69b4b323b3d28d13a25eda9a36667f071dca3b25f9cb1e78 |
-| 기존 analyze_window_audit.py | verified_dataset 상위 폴더의 과거 정규화·선정·집계 표현 | 26aea3223e0d044b58b1ec054ba2eeb29e317686bb62ea345f91d162c3d528df |
+| 자료 | 실제 확인 범위 |
+| --- | --- |
+| ML_음악추천_자료조사_통합본.docx | 본문 전체·표·수식, 특히 3·7·8·10절 |
+| Machine-Learning_term-project_RecSys.pdf | 전체 8쪽, 특히 6~7쪽 제출 요구 |
+| Team4_Proposal_202234905_신준하.pdf | 전체 8쪽, 특히 4쪽 데이터·5~7쪽 설계 |
+| 기존 analyze_window_audit.py | verified_dataset 상위 폴더의 과거 정규화·선정·집계 표현 |
 
 DOCX는 XML 기반 본문·표 추출로 읽고 별도 렌더로 수식을 확인했다. 번들 렌더에서 한글 글꼴 표시가 불완전해 한글 내용은 원문 텍스트 구조와 대조했다. 이는 참고 자료 렌더 환경의 한계이며 문서 원본 손상으로 판정하지 않았다. PDF는 전체 페이지별 텍스트를 추출하고 데이터·평가 관련 페이지를 확인했다.
 
@@ -26,7 +26,7 @@ DOCX는 XML 기반 본문·표 추출로 읽고 별도 렌더로 수식을 확�
 
 ## 파일에 직접 확인한 사실
 
-원본 해시·실제 스키마·행/사용자/날짜 수·시각 범위·결측·빈 문자열·원문/정규화 중복·제한된 사례는 재실행 코드로 확인했다. selected_users.csv의 ID 유일성·원본 사용자 집합 일치·CSV 내부 해시 순위·과거/현재 학습 고유곡 수를 대조했다. 자세한 값과 여섯 입력 해시는 Git의 [원본 점검 보고서](../reports/raw-data-audit.md)에 보존했다. 같은 실행의 `reports/raw-data-audit.json`은 로컬 생성물로 Git에서 제외한다. 필요하면 저장소 루트에서 설치·경로 설정 후 `python scripts/audit_raw_data.py --config config/paths.local.toml`로 재생성한다. 출력 위치와 기존 보고서 보존 방법은 [README의 점검 실행](../README.md#점검-실행)을 따른다.
+원본 해시·실제 스키마·행/사용자/날짜 수·시각 범위·결측·빈 문자열·원문/정규화 중복·제한된 사례는 재실행 코드로 확인했다. selected_users.csv의 ID 유일성·원본 사용자 집합 일치·CSV 내부 해시 순위·과거/현재 학습 고유곡 수를 대조했다. 점검 결과는 Git의 [원본 점검 보고서](../reports/raw-data-audit.md)에 보존했다. 같은 실행의 `reports/raw-data-audit.json`은 로컬 생성물로 Git에서 제외한다. 필요하면 저장소 루트에서 설치·경로 설정 후 `python scripts/audit_raw_data.py --config config/paths.local.toml`로 재생성한다. 출력 위치와 기존 보고서 보존 방법은 [README의 점검 실행](../README.md#점검-실행)을 따른다.
 
 source_manifest.json에 공식 URL, 248,635,791,360바이트라는 원본 크기, 스냅샷, 34개 source_members, HTTP Range 방식, 학습 이력/고정 해시 선정 규칙이 들어 있음을 직접 읽었다. README.txt와 verified_8week_summary.json에서 이전 집계와 추출 설명을 확인했고 COPYING에서 CC0 1.0 Universal 문구를 확인했다. **이 메타데이터에 문장이 존재한다는 확인과 원격 추출 과정을 재검증했다는 주장은 다르다.**
 
