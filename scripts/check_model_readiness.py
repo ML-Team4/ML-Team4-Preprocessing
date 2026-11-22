@@ -17,22 +17,13 @@ import audit_raw_data as base
 
 
 def build_overlap(con):
-    """Count training items shared by user pairs without constructing a full item-by-item matrix.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-    """
+    """Count training items shared by user pairs without constructing a full item-by-item matrix."""
     con.execute("""CREATE TABLE user_overlap AS SELECT a.u, b.u AS v, count(*) AS shared_items
         FROM dp a JOIN dp b USING(i) WHERE a.u <> b.u GROUP BY a.u,b.u""")
 
 
 def supported_targets(con, target_table):
-    """Find target pairs with a shared-listener cosine path before Top-K truncation; accept only internal table names.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        target_table: Internal relation containing target pairs.
-    """
+    """Check which targets share a listener with a training track before Top-K pruning."""
     if target_table not in {"val_targets", "test_targets", "fixture_targets"}:
         raise ValueError("허용되지 않은 내부 테이블 이름입니다")
     return base.rows(con, f"""SELECT DISTINCT t.u,t.i FROM {target_table} t
@@ -40,13 +31,7 @@ def supported_targets(con, target_table):
 
 
 def materialize_supported_targets(con, target_table, output_table):
-    """Create a relation of targets having a shared-listener similarity path.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        target_table: Internal relation containing target pairs.
-        output_table: Internal SQL relation to create.
-    """
+    """Create a relation of targets having a shared-listener similarity path."""
     if (target_table,output_table) not in {("val_targets","val_supported"),("test_targets","test_supported")}:
         raise ValueError("허용되지 않은 내부 테이블 이름입니다")
     con.execute(f"""CREATE TABLE {output_table} AS SELECT DISTINCT t.u,t.i FROM {target_table} t
@@ -54,18 +39,10 @@ def materialize_supported_targets(con, target_table, output_table):
 
 
 def components(con):
-    """Stream star-shaped edges per item and compute connected components without retaining all edges.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-    """
+    """Stream star-shaped edges per item and compute connected components without retaining all edges."""
     parent = {r[0]:r[0] for r in con.execute("SELECT DISTINCT u FROM dp").fetchall()}
     def find(x):
-        """Find and compress the parent path in the disjoint-set structure.
-
-        Args:
-            x: Node index whose connected-component representative is required.
-        """
+        """Find and compress the parent path in the disjoint-set structure."""
         while parent[x]!=x:
             parent[x]=parent[parent[x]]
             x=parent[x]
@@ -87,13 +64,7 @@ def components(con):
 
 
 def diagnose(con, baseline, sample_size=5):
-    """Measure training support, evaluation scope, and array sizes without training a model.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        baseline: Previously computed raw-data audit statistics.
-        sample_size: Maximum number of diagnostic examples per category.
-    """
+    """Measure training support, evaluation scope, and array sizes without training a model."""
     print("[readiness] 임시 ID와 train 분포 집계",flush=True)
     con.execute("""CREATE TABLE di AS SELECT row_number() OVER (ORDER BY artist_name,recording_name)-1 AS i,
         artist_name,recording_name,listeners FROM catalog""")

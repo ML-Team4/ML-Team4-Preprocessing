@@ -14,12 +14,7 @@ NAME = "listenbrainz-preprocessing"
 
 
 def create_zip(package: Path, output: Path) -> None:
-    """Archive only manifest-listed files without overwriting an existing ZIP.
-
-    Args:
-        package: Directory containing the exported dataset and manifest.
-        output: Destination file or directory for this operation.
-    """
+    """Write a new ZIP with only the files listed in the package manifest."""
     if output.exists():
         raise FileExistsError("기존 ZIP을 보존하도록 새 출력 경로를 지정하세요")
     manifest = json.loads((package / "dataset_manifest.json").read_text(encoding="utf-8"))

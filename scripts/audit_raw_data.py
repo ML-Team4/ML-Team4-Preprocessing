@@ -32,70 +32,38 @@ REQUIRED_FILES = raw_inputs.LEGACY_FILES
 
 
 def sha256(path: Path) -> str:
-    """Hash a file incrementally without loading its full contents into memory.
-
-    Args:
-        path: Filesystem path read or written by this operation.
-    """
+    """Hash a file incrementally without loading its full contents into memory."""
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def sql_literal(value: str) -> str:
-    """Escape a SQL string value, never an identifier or SQL fragment.
-
-    Args:
-        value: Scalar input to convert or escape.
-    """
+    """Escape a SQL string value, never an identifier or SQL fragment."""
     return "'" + value.replace("'", "''") + "'"
 
 
 def rows(con, sql: str, params=None) -> list[dict]:
-    """Execute a small aggregate query and return dictionaries keyed by column name.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        sql: SQL statement for a bounded result.
-        params: Bound query values, or None when no bindings are needed.
-    """
+    """Execute a small aggregate query and return dictionaries keyed by column name."""
     cursor = con.execute(sql, params) if params is not None else con.execute(sql)
     columns = [column[0] for column in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
 def one(con, sql: str, params=None) -> dict:
-    """Return the first row of a small aggregate query as a dictionary.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        sql: SQL statement for a bounded result.
-        params: Bound query values, or None when no bindings are needed.
-    """
+    """Return the first row of a small aggregate query as a dictionary."""
     return rows(con, sql, params)[0]
 
 
 def install_normalizer(con) -> None:
-    """Register the fixed NFC and Unicode-whitespace normalization macro.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-    """
+    """Register the fixed NFC and Unicode-whitespace normalization macro."""
     con.execute("CREATE MACRO norm_name(s) AS trim(regexp_replace(nfc_normalize(s), "
                 + sql_literal(SPACE_PATTERN) + ", ' ', 'g'))")
 
 
 def git_trace(repo: Path) -> dict:
-    """Read repository revision information without modifying Git state.
-
-    Args:
-        repo: Repository directory to inspect.
-    """
+    """Read repository revision information without modifying Git state."""
     def run(*args):
-        """Read Git metadata using argument lists rather than a shell.
-
-        Args:
-            *args: Git subcommand and flags passed as separate arguments.
-        """
+        """Read Git metadata using argument lists rather than a shell."""
         if not (repo / ".git").exists():
             return None
         result = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
@@ -107,14 +75,7 @@ def git_trace(repo: Path) -> dict:
 
 
 def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
-    """Compute aggregate quality statistics and bounded examples without exposing original user IDs.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        raw_dir: Directory containing the raw input files.
-        sample_size: Maximum number of diagnostic examples per category.
-        log: Callable receiving progress messages.
-    """
+    """Summarize raw data quality and keep up to sample_size examples per check."""
     log("[audit] schema·기간·결측값 점검", flush=True)
     raw_inputs.bind_raw(con, raw_dir, "raw")
     schema = rows(con, "DESCRIBE raw")
@@ -323,28 +284,16 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
 
 
 def render_report(result: dict) -> str:
-    """Render aggregate results as Markdown, escaping data values where required.
-
-    Args:
-        result: Aggregate results to serialize.
-    """
+    """Render aggregate results as Markdown, escaping data values where required."""
     def table(records):
-        """Format a bounded sequence of records as a Markdown table.
-
-        Args:
-            records: Bounded records to render.
-        """
+        """Format a bounded sequence of records as a Markdown table."""
         if isinstance(records, dict):
             records = [{"항목":k,"값":v} for k,v in records.items()]
         if not records:
             return "관측 사례 없음.\n"
         keys = list(records[0])
         def cell(value):
-            """Escape a data value for safe display in a Markdown table.
-
-            Args:
-                value: Scalar input to convert or escape.
-            """
+            """Escape a data value for safe display in a Markdown table."""
             text = json.dumps(value,ensure_ascii=False,default=str) if not isinstance(value,(int,float)) else str(value)
             return text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("|","&#124;")
         return "| " + " | ".join(keys) + " |\n| " + " | ".join("---" for _ in keys) + " |\n" + "\n".join(
@@ -387,11 +336,7 @@ def main() -> None:
     config_path = args.config.resolve()
     config = tomllib.loads(config_path.read_text(encoding="utf-8"))
     def resolve(key):
-        """Resolve a configured path relative to the TOML file.
-
-        Args:
-            key: Configuration key naming the path.
-        """
+        """Resolve a configured path relative to the TOML file."""
         return (config_path.parent / Path(config[key]).expanduser()).resolve()
     raw_dir, report_dir, cache_dir = (resolve(k) for k in ("raw_dir","report_dir","cache_dir"))
     # Validate paths before writing so reports and temporary files cannot enter the raw directory.

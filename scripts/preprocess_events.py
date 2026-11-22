@@ -34,11 +34,7 @@ REFERENCE = raw_inputs.PARQUET_REFERENCE
 
 
 def read_reference(path: Path = REFERENCE) -> dict:
-    """Read fixed input fingerprints independently of generated reports.
-
-    Args:
-        path: Filesystem path read or written by this operation.
-    """
+    """Read fixed input fingerprints independently of generated reports."""
     with path.open("rb") as stream:
         files = tomllib.load(stream).get("files")
     if not isinstance(files, dict) or set(files) not in (set(base.REQUIRED_FILES), set(raw_inputs.CSV_FILES)):
@@ -54,11 +50,7 @@ def read_reference(path: Path = REFERENCE) -> dict:
 
 
 def fingerprint_inputs(raw_dir: Path) -> list[dict]:
-    """Measure the required raw files so their integrity can be compared before and after processing.
-
-    Args:
-        raw_dir: Directory containing the raw input files.
-    """
+    """Measure the required raw files so their integrity can be compared before and after processing."""
     result = []
     for name in raw_inputs.required_files(raw_dir):
         path = raw_dir / name
@@ -69,12 +61,7 @@ def fingerprint_inputs(raw_dir: Path) -> list[dict]:
 
 
 def verify_input_files(raw_dir: Path, reference: dict) -> list[dict]:
-    """Reject missing or modified inputs against the fixed file-size and SHA256 reference.
-
-    Args:
-        raw_dir: Directory containing the raw input files.
-        reference: Fixed input integrity reference.
-    """
+    """Reject missing or modified inputs against the fixed file-size and SHA256 reference."""
     if set(reference) != set(raw_inputs.required_files(raw_dir)):
         raise ValueError("입력 기준과 원본 배포 형식의 파일 목록이 다릅니다")
     actual = fingerprint_inputs(raw_dir)
@@ -86,13 +73,7 @@ def verify_input_files(raw_dir: Path, reference: dict) -> list[dict]:
 
 
 def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dict:
-    """Check exact types and cohort membership without selecting a new cohort.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        raw_dir: Directory containing the raw input files.
-        expected_users: Required cohort size; production defaults to 5,000.
-    """
+    """Check exact types and cohort membership without selecting a new cohort."""
     raw_inputs.bind_raw(con, raw_dir)
     schema = [(r[0], r[1]) for r in con.execute("DESCRIBE raw_input").fetchall()]
     if schema != EXPECTED_SCHEMA:
@@ -126,11 +107,7 @@ def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dic
 
 
 def build_clean_events(con) -> dict:
-    """Normalize names, classify exclusions, deduplicate event keys, split UTC intervals, and aggregate training counts.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-    """
+    """Normalize names, remove duplicate events, and split the data by UTC time."""
     base.install_normalizer(con)
     # Assign each row one exclusion reason in CASE order; track keys remain two-column tuples.
     con.execute(f"""CREATE VIEW classified_input AS WITH names AS (
@@ -206,11 +183,7 @@ def build_clean_events(con) -> dict:
 
 
 def quality_diagnostics(con) -> dict:
-    """Record training quality flags without deleting events or merging accounts.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-    """
+    """Record training quality flags without deleting events or merging accounts."""
     # Include quality signals from spellings that were not selected as display representatives.
     con.execute(r"""CREATE TABLE quality_train_names AS WITH signals AS (
         SELECT user_id,listened_at,artist_key,recording_key,
@@ -273,11 +246,7 @@ def quality_diagnostics(con) -> dict:
 
 
 def read_settings(config_path: Path) -> dict:
-    """Resolve configuration paths and validate bounded resource settings.
-
-    Args:
-        config_path: TOML configuration file path.
-    """
+    """Resolve configuration paths and validate bounded resource settings."""
     config_path = config_path.resolve()
     cfg = tomllib.loads(config_path.read_text(encoding="utf-8"))
     settings = {k: (config_path.parent / Path(cfg[k]).expanduser()).resolve()
@@ -293,11 +262,7 @@ def read_settings(config_path: Path) -> dict:
 
 @contextmanager
 def working_connection(settings: dict):
-    """Manage a temporary disk-backed DuckDB connection and clean up spill files on exit.
-
-    Args:
-        settings: Validated paths and resource limits.
-    """
+    """Open a temporary DuckDB database with the configured memory and thread limits."""
     settings["cache_dir"].mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="events-", dir=settings["cache_dir"]) as folder:
         con = duckdb.connect(str(Path(folder) / "events.duckdb"))
@@ -314,11 +279,7 @@ def working_connection(settings: dict):
 
 
 def render_report(result: dict) -> str:
-    """Render aggregate results as Markdown, escaping data values where required.
-
-    Args:
-        result: Aggregate results to serialize.
-    """
+    """Render aggregate results as Markdown, escaping data values where required."""
     lines = ["# 입력 검증·정제·UTC 분할 실행 기록", "",
              "전체 원본의 입력 검증·정제·시간 분할 집계다. "
              "원본 사용자 ID·개인별 기록·개인 경로는 포함하지 않는다."]

@@ -16,14 +16,7 @@ REPORT = eda.ROOT / "reports/listening-eda.md"
 
 
 def keyed(rows: list[dict], fields: tuple[str, ...], expected: set[tuple], label: str) -> dict:
-    """Index records by semantic keys and reject missing, duplicated, or unexpected categories.
-
-    Args:
-        rows: Records to index or serialize.
-        fields: Columns forming a semantic record key.
-        expected: Required values or keys.
-        label: Human-readable name used in validation errors.
-    """
+    """Index records by semantic keys and reject missing, duplicated, or unexpected categories."""
     result = {}
     for row in rows:
         key = tuple(row[field] for field in fields)
@@ -36,13 +29,7 @@ def keyed(rows: list[dict], fields: tuple[str, ...], expected: set[tuple], label
 
 
 def report_table(report: Path, headers: list[str], expected: dict[str, list[str]]) -> None:
-    """Compare all report cells, including units, denominators, and displayed precision.
-
-    Args:
-        report: Markdown report path.
-        headers: Expected table column labels.
-        expected: Required values or keys.
-    """
+    """Compare all report cells, including units, denominators, and displayed precision."""
     matches = [table for table in eda.markdown_tables(report) if table[0] == headers]
     eda.require(len(matches) == 1, f"보고서 표 머리글·기간·단위·분모 불일치: {headers[0]}")
     actual = {}
@@ -56,13 +43,7 @@ def report_table(report: Path, headers: list[str], expected: dict[str, list[str]
 
 
 def verify_evaluation_report(output: Path, analysis: dict, report: Path) -> None:
-    """Compare reported evaluation populations, targets, events, and pairs against the tables.
-
-    Args:
-        output: Destination file or directory for this operation.
-        analysis: Recorded EDA analysis metadata.
-        report: Markdown report path.
-    """
+    """Compare reported evaluation populations, targets, events, and pairs against the tables."""
     reasons = {"no_train": "train 이력 없음", "no_period_activity": "기간 활동 없음",
                "no_target": "활동은 있으나 후보 정답 없음",
                "fewer_than_10_candidates": "정답은 있으나 후보 10개 미만", "eligible": "평가 가능"}
@@ -86,12 +67,7 @@ def verify_evaluation_report(output: Path, analysis: dict, report: Path) -> None
     summary = keyed(read_table(output, "target_summary"), ("population", "metric"),
                     {(p, "target_tracks") for p in periods}, "정답 요약 표")
     def values(keys, spec):
-        """Select expected formatted cells for the supplied semantic keys.
-
-        Args:
-            keys: Semantic row keys to select.
-            spec: Expected cell formatting specification.
-        """
+        """Select expected formatted cells for the supplied semantic keys."""
         return [" / ".join(format(float(summary[p, "target_tracks"][k]), spec) for k in keys) for p in periods]
     report_table(report, ["평가 대상 사용자별 정답 수(고유곡/명)", *[
         f"{p} {int(summary[p, 'target_tracks']['users']):,}명" for p in periods]], {
@@ -125,15 +101,7 @@ def verify_evaluation_report(output: Path, analysis: dict, report: Path) -> None
 
 
 def verify_evaluation_tables(con, package: Path, output: Path, analysis: dict, manifest: dict) -> None:
-    """Recompute targets in SQL and check exclusion counts against the fixed package manifest.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        package: Directory containing the exported dataset and manifest.
-        output: Destination file or directory for this operation.
-        analysis: Recorded EDA analysis metadata.
-        manifest: Recorded package metadata, statistics, and hashes.
-    """
+    """Recompute targets in SQL and check exclusion counts against the fixed package manifest."""
     reasons = ("no_train", "no_period_activity", "no_target", "fewer_than_10_candidates", "eligible")
     kinds = ("new_item", "train_seen", "known_item_no_train_user", "candidate")
     user_rows = keyed(read_table(output, "evaluation_users"), ("period", "status"),
@@ -187,12 +155,7 @@ def verify_evaluation_tables(con, package: Path, output: Path, analysis: dict, m
 
 
 def read_table(output: Path, name: str) -> list[dict]:
-    """Load a named EDA CSV as dictionaries.
-
-    Args:
-        output: Destination file or directory for this operation.
-        name: Output table basename.
-    """
+    """Load a named EDA CSV as dictionaries."""
     path = output / "tables" / f"{name}.csv"
     with path.open("rb") as stream:
         eda.require(stream.read(3) == b"\xef\xbb\xbf", f"집계표 BOM 누락: {name}")
@@ -205,10 +168,7 @@ def read_table(output: Path, name: str) -> list[dict]:
 def verify_contents(package: Path, output: Path, reproduce: bool) -> dict:
     """Check EDA contents and optionally compare a fresh reproduction.
 
-    Args:
-        package: Directory containing the exported dataset and manifest.
-        output: Destination file or directory for this operation.
-        reproduce: Whether to rerun generation and compare the reproduced outputs.
+    Set reproduce=True to regenerate and compare the outputs.
     """
     package, output = package.resolve(), output.resolve()
     manifest = eda.check_package_reference(package)
@@ -338,13 +298,7 @@ def verify_contents(package: Path, output: Path, reproduce: bool) -> dict:
 
 
 def verify(package: Path, output: Path, reproduce: bool) -> dict:
-    """Verify outputs against independent evidence and report the verification result.
-
-    Args:
-        package: Directory containing the exported dataset and manifest.
-        output: Destination file or directory for this operation.
-        reproduce: Whether to rerun generation and compare the reproduced outputs.
-    """
+    """Check saved EDA results and write the latest verification status."""
     package, output = package.resolve(), output.resolve()
     eda.require(not output.is_relative_to(package) and not package.is_relative_to(output), "검증 출력과 입력 패키지 경로가 겹칩니다")
     eda.require(output.is_dir(), "검사할 EDA 결과 폴더가 없습니다")

@@ -1,6 +1,6 @@
 # Preprocessing code and external APIs
 
-This guide accompanies the English docstrings in `scripts/` and comments in `tests/`. Each production function documents its parameters at its definition. The supplied lecture PDFs introduce NumPy and SciPy in several examples, but a library appearing in a lecture does not establish that every operation below was taught. We therefore explain the preprocessing operations explicitly. Audio recordings were not used for this comparison.
+This guide explains the APIs used by the preprocessing scripts and what their key arguments control. NumPy and SciPy appear in the lecture PDFs. The notes below cover the specific operations used here.
 
 ## Processing architecture
 

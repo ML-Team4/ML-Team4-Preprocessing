@@ -19,13 +19,13 @@
       "sha256": "52b18f2bfa136e1cb15edb3d83ff32b6f49021a193f0142ed9d46492b1055356"
     },
     "scripts/verify_listening_analysis.py": {
-      "bytes": 22628,
-      "sha256": "088a47b49bed9b98ace70c6ac6aba774969a310d590f202e294741e10c2476d4"
+      "bytes": 22910,
+      "sha256": "a2644268aa829b1009be6244860d09cfadd2267aefe9ba3cbce69fce50b340a6"
     }
   },
   "analysis_manifest_fingerprint": {
     "bytes": 10899,
-    "sha256": "daa21e1c7242451ffe4a76ed1ce96fd64fb27aba4babcd04a464099140b48aee"
+    "sha256": "a4123fbfa326f99be29a66695e0016b55a6d318e39473c0e78be001ade7280e8"
   },
   "scope": "CSV 별도 SQL 집계·집계표·그림 명세·보고서 표; 그림 배치는 별도 육안 검사"
 }
