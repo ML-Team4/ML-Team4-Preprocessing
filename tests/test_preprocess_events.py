@@ -1,4 +1,4 @@
-"""정제 SQL을 독립 Python 기준과 대조하고 입력 오류·품질 신호 보존을 확인한다."""
+"""Regression tests for preprocess events."""
 import hashlib
 import random
 import shutil
@@ -33,7 +33,7 @@ def fixture_connection(records, users=(1, 2), timezone="UTC"):
 
 
 def python_reference(records):
-    """SQL·SQL 집계 결과를 재사용하지 않고 원본 레코드에서 기대 사건을 계산한다."""
+    """Compute expected events directly from records without reusing SQL aggregates."""
     start, train_end = datetime(2026, 8, 17), datetime(2026, 9, 28)
     validation_end, end = datetime(2026, 10, 5), datetime(2026, 10, 12)
     excluded = dict.fromkeys(events.EXCLUSION_REASONS, 0)
@@ -115,7 +115,7 @@ class EventCleaningTest(unittest.TestCase):
             ("UPDATE clean_events SET split = 'train' WHERE split = 'validation'", "train의 UTC 구간 밖"),
         ]:
             with self.subTest(fault=fault), fixture_connection(records) as con:
-                # 중복 집계가 끝난 뒤 분할에만 오류를 주입한다.
+                # Inject only a split error after deduplication has completed.
                 def execute_with_fault(sql, *params):
                     if sql.startswith("CREATE VIEW train_events AS"):
                         con.execute(fault)
@@ -136,7 +136,7 @@ class EventCleaningTest(unittest.TestCase):
                     (1, "2026-08-21 00:00:00", "C ", " D"),
                     (2, "2026-08-17 00:00:00", "e\u0301", "Song"),
                     (2, "2026-08-17 00:00:00", "é", "Song")]
-        # 각 미래 기간의 원문 빈도가 학습 대표명 선택을 뒤집을 수 있게 구성한다.
+        # Future spelling frequencies could otherwise change the training display name.
         validation = [(1, datetime(2026, 9, 28) + timedelta(seconds=i), *first) for i in range(20)]
         test = [(1, datetime(2026, 10, 5) + timedelta(seconds=i), *first) for i in range(20)]
         baseline = None
@@ -148,10 +148,10 @@ class EventCleaningTest(unittest.TestCase):
             self.assert_matches_reference(con, shuffled)
             chosen = con.execute("""SELECT artist_name,recording_name FROM train_events
                 WHERE artist_key='A' ORDER BY listened_at LIMIT 1""").fetchone()
-            self.assertEqual(chosen, first)  # 독립 min이면 관측되지 않은 (' A', ' B')가 된다.
+            self.assertEqual(chosen, first)  # Independent minima would invent the unobserved pair (" A", " B").
             display = sorted(con.execute("SELECT * FROM train_display_names").fetchall())
-            self.assertIn(("A", "B", *second, 2), display)  # 원본 중복 7행은 빈도 7이 아니다.
-            self.assertIn(("C", "D", " C", "D ", 1), display)  # 원문 쌍 빈도 동률
+            self.assertIn(("A", "B", *second, 2), display)  # Seven duplicate raw rows must not count as seven retained events.
+            self.assertIn(("C", "D", " C", "D ", 1), display)  # Break a tie between original name-pair frequencies.
             current = (sorted(con.execute("SELECT * FROM train_events").fetchall()),
                        sorted(con.execute("SELECT * FROM train_pairs").fetchall()), display)
             if baseline is not None:
@@ -252,7 +252,7 @@ class InputValidationTest(unittest.TestCase):
             with self.subTest(file=name):
                 path = self.raw / name
                 original = path.read_bytes()
-                path.write_bytes(bytes([original[0] ^ 1]) + original[1:])  # 크기는 같아도 거부
+                path.write_bytes(bytes([original[0] ^ 1]) + original[1:])  # Reject corruption even when the byte count is unchanged.
                 with self.assertRaisesRegex(ValueError, "bytes/SHA256"):
                     events.verify_input_files(self.raw, reference)
                 path.write_bytes(original)
@@ -292,7 +292,7 @@ class InputValidationTest(unittest.TestCase):
             self.assertEqual(result["cohort"]["raw_users_not_in_cohort"], 0)
             self.assertEqual(result["raw_rows"], 2)
         with duckdb.connect() as con, self.assertRaisesRegex(ValueError, "지정된 크기"):
-            events.validate_input_tables(con, self.raw)  # CLI 기준은 항상 5,000명
+            events.validate_input_tables(con, self.raw)  # The CLI contract always requires 5,000 users.
         original = self.csv.read_text()
         for text, message in [
             ("user_id,train_unique_tracks,user_index\n1,999,1\n2,999,1\n", "일대일"),

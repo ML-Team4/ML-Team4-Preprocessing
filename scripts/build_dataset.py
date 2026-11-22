@@ -1,4 +1,4 @@
-"""공통 학습·평가 패키지 생성. 새 버전은 저장 파일을 검증한 뒤 확정한다."""
+"""Build and verify the common CSV package before publishing it to a new directory."""
 from __future__ import annotations
 
 import argparse
@@ -42,7 +42,12 @@ CSV_FILES = {
 
 
 def build_train_tables(con, train: dict) -> None:
-    """정제된 train_pairs·train_display_names에서 ID와 학습 파일 관계를 만든다."""
+    """Create deterministic common IDs and training tables from cleaned training relations only.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        train: Training dimensions and counts used for consistency checks.
+    """
     if max(train["users"], train["items"]) > np.iinfo(np.int32).max:
         raise ValueError("train 사용자 또는 곡 수가 int32 범위를 초과했습니다")
     con.execute("""CREATE TABLE users AS SELECT
@@ -61,7 +66,15 @@ def build_train_tables(con, train: dict) -> None:
 
 
 def build_evaluation(con, period: str, catalog_size: int, cohort_size: int, events: int) -> dict:
-    """기간에 실제로 들은 곡만 분류한다. 후보의 전체 좌표 대신 개수만 계산한다."""
+    """Classify future pairs, apply training catalog and history restrictions, and reconcile eligible targets and exclusions.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        period: Evaluation window name: validation or test.
+        catalog_size: Number of tracks in the training catalog.
+        cohort_size: Number of selected users before evaluation exclusions.
+        events: Cleaned event count for the selected period.
+    """
     con.execute(f"""CREATE TABLE {period}_classified AS WITH pairs AS (
         SELECT user_id, artist_key, recording_key, count(*) AS events
         FROM {period}_events GROUP BY ALL)
@@ -123,7 +136,12 @@ def build_evaluation(con, period: str, catalog_size: int, cohort_size: int, even
 
 
 def ordered_batches(con, table: str):
-    """한 번에 최대 BATCH_ROWS행을 전달하는 정렬 쿼리와 필수 필드 스키마."""
+    """Yield explicitly sorted Arrow batches with at most BATCH_ROWS rows and a fixed schema.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        table: Internal table name from the fixed data contract.
+    """
     columns, order = CSV_FILES[table]
     schema = pa.schema([pa.field(name, dtype, nullable=False) for name, dtype in columns])
     projection = ", ".join(schema.names)
@@ -132,7 +150,12 @@ def ordered_batches(con, table: str):
 
 
 def read_csv_batches(path: Path, schema: pa.Schema):
-    """명시한 자료형으로 CSV를 읽고 일정 행 수의 배치로 재구성한다."""
+    """Read explicitly typed CSV records and regroup them into fixed-size batches.
+
+    Args:
+        path: Filesystem path read or written by this operation.
+        schema: Expected Arrow column names, types, and nullability.
+    """
     with arrow_csv.open_csv(
         path,
         read_options=arrow_csv.ReadOptions(block_size=8 * 1024 * 1024),
@@ -164,7 +187,12 @@ def read_csv_batches(path: Path, schema: pa.Schema):
 
 
 def write_csv(con, staging: Path) -> None:
-    """문자열의 쉼표·따옴표·개행을 인용하고 UTF-8 BOM을 포함해 저장한다."""
+    """Write UTF-8 BOM CSVs with correctly quoted commas, quotes, and embedded newlines.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        staging: Isolated temporary directory for an unfinished package.
+    """
     for table in CSV_FILES:
         schema, reader = ordered_batches(con, table)
         with reader, (staging / f"{table}.csv").open("wb") as stream:
@@ -177,16 +205,35 @@ def write_csv(con, staging: Path) -> None:
 
 
 def target_users(con, period: str) -> list[int]:
+    """Return sorted distinct user indices from the selected target relation.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        period: Evaluation window name: validation or test.
+    """
     return [row[0] for row in con.execute(f"""SELECT DISTINCT user_idx
         FROM {period}_targets ORDER BY user_idx""").fetchall()]
 
 
 def fingerprint(path: Path) -> dict:
+    """Return file size and SHA256 digest.
+
+    Args:
+        path: Filesystem path read or written by this operation.
+    """
     return {"bytes": path.stat().st_size, "sha256": base.sha256(path)}
 
 
 def verify_package(con, staging: Path, train: dict, evaluation: dict, copying: dict) -> dict:
-    """파일의 물리적 행 순서·스키마·내용을 생성 관계와 대조하고 파일 메타데이터를 반환한다."""
+    """Compare saved values, types, and physical order with generated relations and return file metadata.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        staging: Isolated temporary directory for an unfinished package.
+        train: Training dimensions and counts used for consistency checks.
+        evaluation: Per-period eligibility and target statistics.
+        copying: Expected size and hash of the copied data license.
+    """
     expected_rows = {
         "users": train["users"], "items": train["items"],
         "train_interactions": train["user_item_pairs"],
@@ -233,7 +280,17 @@ def verify_package(con, staging: Path, train: dict, evaluation: dict, copying: d
 def build_package(config: Path, output_root: Path, version: str, *,
                   reference_path: Path = common.REFERENCE, expected_users: int = 5000,
                   example_script: Path | None = None, example_variant: str | None = None) -> Path:
-    """원본 검증부터 최종 경로 확정까지 실행한다. 대체 입력 기준은 합성 테스트에서 사용한다."""
+    """Validate inputs, build and verify a staging package, then publish to a new path.
+
+    Args:
+        config: TOML configuration file path.
+        output_root: Parent directory for a new versioned package.
+        version: Dataset version and output folder name.
+        reference_path: Path to the fixed input integrity reference.
+        expected_users: Required cohort size; production defaults to 5,000.
+        example_script: Optional consumer example used by synthetic compatibility tests.
+        example_variant: Optional compatibility-example selector.
+    """
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", version):
         raise ValueError("버전은 영문·숫자로 시작하고 영문·숫자·점·밑줄·하이픈만 포함한 1~80자 폴더명이어야 합니다")
     output_root = output_root.resolve()
@@ -248,7 +305,7 @@ def build_package(config: Path, output_root: Path, version: str, *,
             ignored = subprocess.run(["git", "check-ignore", "--no-index", "-q", relative], cwd=REPO)
             allowed = ignored.returncode == 0
         else:
-            # Code → Download ZIP에는 .git이 없다. 기본 재현 출력은 같은 위치에서 허용한다.
+            # Downloaded repository ZIPs lack .git; permit the standard reproduction cache in that case.
             allowed = relative.startswith(".cache/")
         if not allowed:
             raise ValueError("저장소 안의 출력 폴더는 Git 제외 경로여야 합니다")
@@ -262,8 +319,8 @@ def build_package(config: Path, output_root: Path, version: str, *,
                              example_script, example_variant)
         if os.path.lexists(final):
             raise FileExistsError(f"이미 존재하는 dataset 버전입니다: {version}")
-        # 각 실행은 고유한 임시 폴더를 쓴다. POSIX rename은 다른 실행이 먼저
-        # 확정한 비어 있지 않은 패키지 디렉터리를 교체할 수 없다.
+        # Each run uses a unique staging directory. POSIX rename cannot replace a nonempty
+        # package directory already finalized by another run.
         try:
             staging.rename(final)
         except OSError as error:
@@ -276,6 +333,18 @@ def build_package(config: Path, output_root: Path, version: str, *,
 def build_staged_package(staging: Path, config: Path, settings: dict, version: str,
                          reference_path: Path, expected_users: int, example_script: Path | None,
                          example_variant: str | None) -> None:
+    """Populate the isolated staging directory and assemble its validated manifest.
+
+    Args:
+        staging: Isolated temporary directory for an unfinished package.
+        config: TOML configuration file path.
+        settings: Validated paths and resource limits.
+        version: Dataset version and output folder name.
+        reference_path: Path to the fixed input integrity reference.
+        expected_users: Required cohort size; production defaults to 5,000.
+        example_script: Optional consumer example used by synthetic compatibility tests.
+        example_variant: Optional compatibility-example selector.
+    """
     raw = settings["raw_dir"]
     code_paths = [Path(__file__), Path(common.__file__), Path(base.__file__), Path(raw_inputs.__file__), PACKAGE_README,
                   REPO / "requirements.txt"]
@@ -365,6 +434,7 @@ def build_staged_package(staging: Path, config: Path, settings: dict, version: s
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default=raw_inputs.DEFAULT_CONFIG, type=Path, help="원본과 작업 위치 설정")
     parser.add_argument("--output-root", default=Path(".cache/reproduced"), type=Path, help="새 패키지를 저장할 경로")

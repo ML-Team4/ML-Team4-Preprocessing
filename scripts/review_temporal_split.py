@@ -1,4 +1,4 @@
-"""전달 원본에서 독립적으로 사건 키를 계산해 정제·분할을 대조한다. 집계만 출력한다."""
+"""Independently recompute event keys and check cleaning and temporal partitioning."""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +13,12 @@ TRACK_KEY = "artist_key, recording_key"
 
 
 def build_reference(con, raw: Path) -> None:
-    """생산 코드의 분할 경계, 정규화 함수, 분류 관계를 읽지 않고 원본을 계산한다."""
+    """Independently derive expected events without using production split labels or normalization helpers.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        raw: Directory containing the raw input files.
+    """
     raw_inputs.bind_raw(con, raw, "review_source")
     con.execute("""CREATE TABLE review_periods AS SELECT * FROM (VALUES
         ('train',       TIMESTAMP '2026-08-17', TIMESTAMP '2026-09-28'),
@@ -44,7 +49,11 @@ def build_reference(con, raw: Path) -> None:
 
 
 def compare_partitions(con) -> dict:
-    """반개구간으로 기대 집합을 만들고 각 키의 소속과 양방향 차이를 확인한다."""
+    """Check half-open UTC interval membership and bidirectional event-key differences.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+    """
     membership_errors = con.execute(f"""SELECT count(*) FROM (
         SELECT {EVENT_KEY}
         FROM review_events e LEFT JOIN review_periods p
@@ -60,7 +69,7 @@ def compare_partitions(con) -> dict:
     partitions = []
     for period, start, end in con.execute(
             "SELECT * FROM review_periods ORDER BY start_utc").fetchall():
-        # 양쪽 키의 중복은 별도로 검사한다. ANTI JOIN은 방향별 누락·초과를 센다.
+        # Check uniqueness separately; directional ANTI JOINs count missing and extra keys.
         stats = events.base.one(con, f"""WITH expected AS (
             SELECT * FROM review_events WHERE listened_at >= ? AND listened_at < ?
         ), actual AS (
@@ -79,7 +88,11 @@ def compare_partitions(con) -> dict:
 
 
 def review_cleaning(con) -> dict:
-    """동일 유효 행에서 곡 키·사용자-곡 쌍과 중복 처리의 영향을 집계한다."""
+    """Measure normalization and deduplication effects on the same valid raw rows.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+    """
     categories = dict(con.execute("SELECT category, count(*) FROM review_rows GROUP BY ALL").fetchall())
     exclusions = {name: categories.get(name, 0)
                   for name in ("missing_required", "outside_window", "empty_name")}
@@ -107,7 +120,7 @@ def review_cleaning(con) -> dict:
             FROM (SELECT count(DISTINCT user_id) AS listeners
                   FROM review_train_rows GROUP BY {keys})""")
 
-    # 기대 사용자-곡마다 초과 행을 포함한 수와 구별되는 시각의 수를 함께 유지한다.
+    # Keep both raw multiplicity and distinct timestamp counts for every expected user–track pair.
     con.execute(f"""CREATE TABLE review_train_pairs AS
         SELECT user_id, {TRACK_KEY}, sum(valid_rows) AS valid_rows, count(*) AS events
         FROM review_events
@@ -132,7 +145,11 @@ def review_cleaning(con) -> dict:
 
 
 def review_retention_signals(con) -> dict:
-    """고활동 사용자와 기호가 있는 곡을 진단하고 처리 관계에는 그대로 둔다."""
+    """Summarize activity and name flags while preserving the processing population.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+    """
     punctuation = events.base.one(con, r"""WITH items AS (
         SELECT events, regexp_matches(artist_key, '[\p{P}\p{S}]')
             OR regexp_matches(recording_key, '[\p{P}\p{S}]') AS has_punctuation_or_symbol
@@ -160,6 +177,11 @@ def review_retention_signals(con) -> dict:
 
 
 def review_cohort(con) -> dict:
+    """Compare selected user membership, hash order, and training history counts.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+    """
     con.execute(r"""CREATE MACRO review_legacy_name(s) AS
         nfc_normalize(regexp_replace(trim(s), '\s+', ' ', 'g'))""")
     return events.base.one(con, """WITH ranked AS (
@@ -188,6 +210,7 @@ def review_cohort(con) -> dict:
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=raw_inputs.DEFAULT_CONFIG)
     args = parser.parse_args()

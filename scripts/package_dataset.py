@@ -1,4 +1,4 @@
-"""검증된 공통 CSV 폴더를 단일 최상위 폴더가 있는 배포 ZIP으로 묶는다."""
+"""Package verified files under a single ZIP directory."""
 from __future__ import annotations
 
 import argparse
@@ -14,7 +14,12 @@ NAME = "listenbrainz-preprocessing"
 
 
 def create_zip(package: Path, output: Path) -> None:
-    """기존 ZIP을 보존하고 manifest에 등록된 파일만 동일한 바이트로 압축한다."""
+    """Archive only manifest-listed files without overwriting an existing ZIP.
+
+    Args:
+        package: Directory containing the exported dataset and manifest.
+        output: Destination file or directory for this operation.
+    """
     if output.exists():
         raise FileExistsError("기존 ZIP을 보존하도록 새 출력 경로를 지정하세요")
     manifest = json.loads((package / "dataset_manifest.json").read_text(encoding="utf-8"))
@@ -34,11 +39,12 @@ def create_zip(package: Path, output: Path) -> None:
                 archive.writestr(info, (package / name).read_bytes(), compresslevel=9)
         if before != package_fingerprints(package, manifest):
             raise RuntimeError("ZIP 생성 중 패키지가 변경됐습니다")
-        # 원자적 hard link는 검사 이후 다른 실행이 만든 ZIP도 덮어쓰지 않는다.
+        # An atomic hard link prevents overwriting a ZIP created by another process after the check.
         os.link(staged, output)
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package", type=Path, default=Path(".cache/reproduced/listenbrainz-preprocessing"))
     parser.add_argument("--output", type=Path, default=Path(".cache/reproduced/listenbrainz-preprocessing.zip"))

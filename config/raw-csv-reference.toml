@@ -1,4 +1,4 @@
-# 동봉된 주별 CSV와 출처·검증 자료의 고정 무결성 기준. 기존 Parquet 기준과 구분한다.
+# Fixed integrity reference for bundled weekly CSVs and provenance; separate from the legacy Parquet reference.
 
 [files."listens_2026-08-17.csv.gz"]
 bytes = 24835551

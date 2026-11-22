@@ -1,9 +1,4 @@
-"""입력 검증·공통 정제·UTC 시간 분할을 수행하고 학습용 SQL 관계를 제공한다.
-
-대규모 사건은 DuckDB 파일 DB 안에서 처리한다. 공개 반환값은 파일명·해시와
-집계뿐이며 원본 경로, 사용자 ID, 개인별 기록은 보고서에 포함하지 않는다.
-정규화 구현과 고정 경계는 audit_raw_data에서 재사용한다.
-"""
+"""Validate inputs, clean events, and expose UTC split relations. Large records stay in temporary DuckDB storage; public results contain aggregates only."""
 from __future__ import annotations
 
 import argparse
@@ -39,7 +34,11 @@ REFERENCE = raw_inputs.PARQUET_REFERENCE
 
 
 def read_reference(path: Path = REFERENCE) -> dict:
-    """자동 생성 보고서와 분리한 고정 입력 기준값을 읽는다."""
+    """Read fixed input fingerprints independently of generated reports.
+
+    Args:
+        path: Filesystem path read or written by this operation.
+    """
     with path.open("rb") as stream:
         files = tomllib.load(stream).get("files")
     if not isinstance(files, dict) or set(files) not in (set(base.REQUIRED_FILES), set(raw_inputs.CSV_FILES)):
@@ -55,6 +54,11 @@ def read_reference(path: Path = REFERENCE) -> dict:
 
 
 def fingerprint_inputs(raw_dir: Path) -> list[dict]:
+    """Measure the required raw files so their integrity can be compared before and after processing.
+
+    Args:
+        raw_dir: Directory containing the raw input files.
+    """
     result = []
     for name in raw_inputs.required_files(raw_dir):
         path = raw_dir / name
@@ -65,6 +69,12 @@ def fingerprint_inputs(raw_dir: Path) -> list[dict]:
 
 
 def verify_input_files(raw_dir: Path, reference: dict) -> list[dict]:
+    """Reject missing or modified inputs against the fixed file-size and SHA256 reference.
+
+    Args:
+        raw_dir: Directory containing the raw input files.
+        reference: Fixed input integrity reference.
+    """
     if set(reference) != set(raw_inputs.required_files(raw_dir)):
         raise ValueError("입력 기준과 원본 배포 형식의 파일 목록이 다릅니다")
     actual = fingerprint_inputs(raw_dir)
@@ -76,7 +86,13 @@ def verify_input_files(raw_dir: Path, reference: dict) -> list[dict]:
 
 
 def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dict:
-    """5,000명을 재선정하지 않고 정확한 스키마와 기존 CSV의 사용자 집합을 검증한다."""
+    """Check exact types and cohort membership without selecting a new cohort.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        raw_dir: Directory containing the raw input files.
+        expected_users: Required cohort size; production defaults to 5,000.
+    """
     raw_inputs.bind_raw(con, raw_dir)
     schema = [(r[0], r[1]) for r in con.execute("DESCRIBE raw_input").fetchall()]
     if schema != EXPECTED_SCHEMA:
@@ -110,9 +126,13 @@ def validate_input_tables(con, raw_dir: Path, expected_users: int = 5000) -> dic
 
 
 def build_clean_events(con) -> dict:
-    """raw_input에서 재사용할 사건·분할 뷰와 학습 집계를 만든다."""
+    """Normalize names, classify exclusions, deduplicate event keys, split UTC intervals, and aggregate training counts.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+    """
     base.install_normalizer(con)
-    # CASE 순서로 제외 사유를 한 번만 귀속한다. 곡 키는 항상 두 열의 튜플이다.
+    # Assign each row one exclusion reason in CASE order; track keys remain two-column tuples.
     con.execute(f"""CREATE VIEW classified_input AS WITH names AS (
         SELECT *, norm_name(artist_name) AS artist_key,
             norm_name(recording_name) AS recording_key FROM raw_input)
@@ -128,8 +148,8 @@ def build_clean_events(con) -> dict:
         count(*) FILTER (WHERE exclusion_reason='outside_window') AS outside_window,
         count(*) FILTER (WHERE exclusion_reason='empty_name') AS empty_name,
         count(*) FILTER (WHERE exclusion_reason IS NULL) AS valid_rows FROM classified_input""")
-    # arg_min의 값과 정렬 키 모두 STRUCT 쌍이다. 독립 min으로 원문을 합성하지 않는다.
-    # encode는 UTF-8 BLOB이므로 입력 순서나 문자열 collation에 의존하지 않는다.
+    # Use paired STRUCT values and ordering keys; independent minima could invent a name pair.
+    # encode returns UTF-8 bytes, independent of input order and text collation.
     con.execute(f"""CREATE TABLE clean_events AS WITH chosen AS (
         SELECT user_id, listened_at, artist_key, recording_key,
             count(*) AS source_rows,
@@ -143,7 +163,7 @@ def build_clean_events(con) -> dict:
             CASE WHEN listened_at < TIMESTAMP '{base.TRAIN_END}' THEN 'train'
                 WHEN listened_at < TIMESTAMP '{base.VALIDATION_END}' THEN 'validation'
                 ELSE 'test' END AS split, source_rows FROM chosen""")
-    # 중복은 각 키에 속한 원본 행 수로 직접 센다. 분할 건수에서 역산하지 않는다.
+    # Count excess rows directly within each event key, not by subtracting split totals.
     dedup = base.one(con, """SELECT count(*) AS events,
         coalesce(sum(source_rows - 1), 0) AS duplicate_excess FROM clean_events""")
     exclusions = {k: counts[k] for k in EXCLUSION_REASONS[:-1]}
@@ -167,7 +187,7 @@ def build_clean_events(con) -> dict:
     kept = sum(p["events"] for p in partitions)
     if kept != dedup["events"]:
         raise RuntimeError("UTC split 집계가 모든 정제 사건을 포함하지 않습니다")
-    # train만 읽는다. 1~9곡 사용자도 남기고 미래에만 활동한 사용자에게 학습 행을 만들지 않는다.
+    # Read training only; retain users with 1–9 tracks and omit future-only users.
     con.execute("""CREATE TABLE train_pairs AS SELECT user_id, artist_key, recording_key,
         count(*)::BIGINT AS listen_count FROM train_events GROUP BY ALL""")
     con.execute("""CREATE VIEW train_display_names AS WITH variants AS (SELECT artist_key, recording_key,
@@ -186,8 +206,12 @@ def build_clean_events(con) -> dict:
 
 
 def quality_diagnostics(con) -> dict:
-    """학습 기간의 별도 테이블에서 플래그를 추적한다. 사건 삭제·계정 병합은 하지 않는다."""
-    # 대표에서 탈락한 원문 변형의 신호도 동일 사건의 진단에서 빠뜨리지 않는다.
+    """Record training quality flags without deleting events or merging accounts.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+    """
+    # Include quality signals from spellings that were not selected as display representatives.
     con.execute(r"""CREATE TABLE quality_train_names AS WITH signals AS (
         SELECT user_id,listened_at,artist_key,recording_key,
             contains(artist_name,chr(65533)) OR contains(recording_name,chr(65533)) AS replacement,
@@ -249,6 +273,11 @@ def quality_diagnostics(con) -> dict:
 
 
 def read_settings(config_path: Path) -> dict:
+    """Resolve configuration paths and validate bounded resource settings.
+
+    Args:
+        config_path: TOML configuration file path.
+    """
     config_path = config_path.resolve()
     cfg = tomllib.loads(config_path.read_text(encoding="utf-8"))
     settings = {k: (config_path.parent / Path(cfg[k]).expanduser()).resolve()
@@ -264,7 +293,11 @@ def read_settings(config_path: Path) -> dict:
 
 @contextmanager
 def working_connection(settings: dict):
-    """기본 3GB·2스레드로 실행하고 DB와 spill을 종료 시 정리한다."""
+    """Manage a temporary disk-backed DuckDB connection and clean up spill files on exit.
+
+    Args:
+        settings: Validated paths and resource limits.
+    """
     settings["cache_dir"].mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="events-", dir=settings["cache_dir"]) as folder:
         con = duckdb.connect(str(Path(folder) / "events.duckdb"))
@@ -281,6 +314,11 @@ def working_connection(settings: dict):
 
 
 def render_report(result: dict) -> str:
+    """Render aggregate results as Markdown, escaping data values where required.
+
+    Args:
+        result: Aggregate results to serialize.
+    """
     lines = ["# 입력 검증·정제·UTC 분할 실행 기록", "",
              "전체 원본의 입력 검증·정제·시간 분할 집계다. "
              "원본 사용자 ID·개인별 기록·개인 경로는 포함하지 않는다."]
@@ -300,6 +338,7 @@ def render_report(result: dict) -> str:
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=raw_inputs.DEFAULT_CONFIG)
     parser.add_argument("--inputs-only", action="store_true", help="입력 파일·스키마·사용자 집합 검증만 실행")

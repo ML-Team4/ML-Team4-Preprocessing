@@ -1,4 +1,4 @@
-"""저장된 학습·평가 패키지를 원본 청취 사건에서 독립적으로 대조한다."""
+"""Independently compare saved training and evaluation files with raw listening events."""
 from __future__ import annotations
 
 import argparse
@@ -33,7 +33,12 @@ SCHEMAS = {
 
 
 def build_expected_train(con, raw: Path) -> tuple[list[dict], dict, dict]:
-    """정제 사건에서 기간별 집계와 정렬된 공통 ID의 기대값을 산출한다."""
+    """Independently derive cleaned training records, statistics, and sorted common IDs.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        raw: Directory containing the raw input files.
+    """
     build_reference(con, raw)
     con.execute("""CREATE VIEW expected_events AS SELECT e.*, p.period FROM review_events e
         JOIN review_periods p ON e.listened_at >= p.start_utc AND e.listened_at < p.end_utc""")
@@ -54,7 +59,7 @@ def build_expected_train(con, raw: Path) -> tuple[list[dict], dict, dict]:
     con.execute("""CREATE TABLE expected_users AS SELECT
         (row_number() OVER (ORDER BY user_id) - 1)::INTEGER AS user_idx, user_id
         FROM (SELECT DISTINCT user_id FROM expected_counts)""")
-    # 사건마다 원문 쌍의 최솟값을 고른 뒤 정제된 train의 원문 쌍 빈도를 센다.
+    # Select an original pair per event, then count its frequency in cleaned training events.
     con.execute(f"""CREATE TABLE expected_items AS WITH originals AS (
         SELECT {EVENT_KEY}, min((encode(artist_name), encode(recording_name))) AS original
         FROM review_rows WHERE category = 'valid'
@@ -85,7 +90,13 @@ def build_expected_train(con, raw: Path) -> tuple[list[dict], dict, dict]:
 
 
 def build_expected_evaluation(con, period: str, catalog_size: int) -> dict:
-    """기간 고유 곡에 원래 train 카탈로그와 사용자별 이력을 적용한다."""
+    """Apply the original training catalog and histories to distinct future-period pairs.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        period: Evaluation window name: validation or test.
+        catalog_size: Number of tracks in the training catalog.
+    """
     pairs = f"expected_{period}_pairs"
     users = f"expected_{period}_eligibility"
     con.execute(f"""CREATE TABLE {pairs} AS WITH heard AS (
@@ -145,7 +156,14 @@ def build_expected_evaluation(con, period: str, catalog_size: int) -> dict:
 
 
 def compare_sets(con, expected: str, actual: str, columns: list[str]) -> dict:
-    """유일성이 검사된 관계를 양방향으로 대조하며 집계만 반환한다."""
+    """Compare unique relations in both directions and return aggregate differences.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        expected: Required values or keys.
+        actual: Observed values to validate.
+        columns: Ordered columns to compare.
+    """
     key = ", ".join(columns)
     return one(con, f"""SELECT
         (SELECT count(*) FROM {expected} ANTI JOIN {actual} USING ({key})) AS missing,
@@ -153,14 +171,27 @@ def compare_sets(con, expected: str, actual: str, columns: list[str]) -> dict:
 
 
 def require_metadata(actual: dict, expected: dict, label: str) -> None:
-    """계약 필드의 존재·자료형·값을 확인하고 허용된 추가 필드는 보존한다."""
+    """Check required metadata fields, types, and values while permitting supported extra fields.
+
+    Args:
+        actual: Observed values to validate.
+        expected: Required values or keys.
+        label: Human-readable name used in validation errors.
+    """
     for key, value in expected.items():
         if key not in actual or type(actual[key]) is not type(value) or actual[key] != value:
             raise ValueError(f"{label}의 manifest 필드가 다릅니다: {key}")
 
 
 def read_parquet(con, package: Path, table: str, entry: dict) -> dict:
-    """Arrow로 저장 스키마·NULL·물리적 순서를 검사하고 전체 행을 대조한다."""
+    """Check stored Arrow types, nulls, physical order, and all rows against independent expectations.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        package: Directory containing the exported dataset and manifest.
+        table: Internal table name from the fixed data contract.
+        entry: Manifest metadata for the selected file.
+    """
     path = package / f"{table}.parquet"
     fields, order = SCHEMAS[table]
     schema = pa.schema([pa.field(name, dtype, nullable=False) for name, dtype in fields])
@@ -184,7 +215,7 @@ def read_parquet(con, package: Path, table: str, entry: dict) -> dict:
             indices = [batch[name].to_numpy().astype(np.int64) for name in order]
             if any(np.any(values < 0) for values in indices):
                 raise ValueError(f"{path.name}에 음수 인덱스가 있습니다")
-            # 비음수 int32 두 열의 순서쌍을 int64로 비교해 배치 경계도 검사한다.
+            # Encode each nonnegative int32 coordinate pair as int64 to compare across batch boundaries.
             keys = indices[0] if len(indices) == 1 else (indices[0] << 32) + indices[1]
             if keys[0] <= previous or np.any(keys[1:] <= keys[:-1]):
                 raise ValueError(f"{path.name}의 ID가 중복되거나 정렬되지 않았습니다")
@@ -195,7 +226,14 @@ def read_parquet(con, package: Path, table: str, entry: dict) -> dict:
 
 
 def read_csv(con, package: Path, table: str, entry: dict) -> dict:
-    """CSV 전체를 명시한 자료형으로 읽고 순서와 독립 기대값을 대조한다."""
+    """Read every CSV row with explicit types and compare ordering and independent expected values.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        package: Directory containing the exported dataset and manifest.
+        table: Internal table name from the fixed data contract.
+        entry: Manifest metadata for the selected file.
+    """
     path = package / f"{table}.csv"
     fields, order = SCHEMAS[table]
     schema = pa.schema([pa.field(name, dtype, nullable=False) for name, dtype in fields])
@@ -243,6 +281,15 @@ def read_csv(con, package: Path, table: str, entry: dict) -> dict:
 
 def read_evaluation_users(con, package: Path, period: str, entry: dict, *,
                           encoding: str = "UTF-8") -> dict:
+    """Check the saved evaluation user list against independently derived eligible users.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        package: Directory containing the exported dataset and manifest.
+        period: Evaluation window name: validation or test.
+        entry: Manifest metadata for the selected file.
+        encoding: Text encoding for the saved evaluation-user CSV.
+    """
     path = package / f"{period}_users.csv"
     require_metadata(entry, {
         "columns": {"user_idx": "decimal int32"}, "column_order": ["user_idx"],
@@ -278,6 +325,14 @@ def read_evaluation_users(con, package: Path, period: str, entry: dict, *,
 
 
 def read_csr(con, path: Path, train: dict, entry: dict) -> dict:
+    """Validate stored CSR arrays before loading and compare every training coordinate and count.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        path: Filesystem path read or written by this operation.
+        train: Training dimensions and counts used for consistency checks.
+        entry: Manifest metadata for the selected file.
+    """
     shape = (train["users"], train["items"])
     nnz = train["user_item_pairs"]
     require_metadata(entry, {
@@ -285,7 +340,7 @@ def read_csr(con, path: Path, train: dict, entry: dict) -> dict:
         "sum_counts": train["events"], "canonical": True,
         "matches_interactions_all_coordinates_and_values": True,
     }, path.name)
-    # SciPy는 indptr[-1] 뒤의 원소를 잘라낼 수 있어 저장 배열을 먼저 검사한다.
+    # Inspect stored arrays first: SciPy can truncate elements beyond indptr[-1].
     with np.load(path, allow_pickle=False) as stored:
         stored_shape = stored["shape"]
         if (stored["format"].shape != () or stored["format"].item() != b"csr"
@@ -329,6 +384,12 @@ def read_csr(con, path: Path, train: dict, entry: dict) -> dict:
 
 
 def package_fingerprints(package: Path, manifest: dict) -> dict:
+    """Verify every manifest-listed file size and digest.
+
+    Args:
+        package: Directory containing the exported dataset and manifest.
+        manifest: Recorded package metadata, statistics, and hashes.
+    """
     extension = "csv" if manifest["contract_version"] == "2.0.0" else "parquet"
     names = {f"{name}.{extension}" for name in SCHEMAS} | {
         "validation_users.csv", "test_users.csv", "README.md", "COPYING"}
@@ -346,7 +407,13 @@ def package_fingerprints(package: Path, manifest: dict) -> dict:
 
 
 def verify_manifest_metadata(manifest: dict, raw: Path, reference_path: Path) -> None:
-    """출처는 동봉 기록과 대조하고 실행 코드 지문의 필수 항목과 형식을 검사한다."""
+    """Check source provenance and required code-fingerprint metadata against bundled records.
+
+    Args:
+        manifest: Recorded package metadata, statistics, and hashes.
+        raw: Directory containing the raw input files.
+        reference_path: Path to the fixed input integrity reference.
+    """
     source = json.loads((raw / "source_manifest.json").read_text(encoding="utf-8"))
     kind = manifest["source"]["kind"]
     if kind not in ("listenbrainz", "synthetic_example"):
@@ -367,7 +434,7 @@ def verify_manifest_metadata(manifest: dict, raw: Path, reference_path: Path) ->
             or any(not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None
                    for value in hashes.values())):
         raise ValueError("실행 코드·설정 SHA256의 필수 항목 또는 형식이 다릅니다")
-    # 생성 당시의 코드와 고정 기준은 기록된 지문으로 추적한다. 이전 manifest의 추가 필드도 허용한다.
+    # Track generation code and reference files by fingerprints; allow legacy extra manifest fields.
     require_metadata(hashes, {"input_reference": sha256(reference_path)}, "source_and_config_sha256")
     readme_digest = manifest["files"]["README.md"]["sha256"]
     if "distribution" in manifest:
@@ -386,6 +453,15 @@ def verify_manifest_metadata(manifest: dict, raw: Path, reference_path: Path) ->
 
 def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None = None,
                      reference_path: Path = inputs.REFERENCE, expected_users: int = 5000) -> dict:
+    """Independently validate a package against raw events and return aggregate differences.
+
+    Args:
+        config: TOML configuration file path.
+        package: Directory containing the exported dataset and manifest.
+        manifest_sha256: Optional independently recorded expected manifest digest.
+        reference_path: Path to the fixed input integrity reference.
+        expected_users: Required cohort size; production defaults to 5,000.
+    """
     package = package.resolve()
     settings = inputs.read_settings(config)
     raw = settings["raw_dir"]
@@ -400,8 +476,8 @@ def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None
     recorded_inputs = manifest["input_files"]
     equivalent_csv = False
     if raw_inputs.is_csv(raw) and recorded_inputs != original:
-        # 배포 패키지는 최초 생성의 Parquet 계보를 보존한다. 고정 CSV 기준으로 검증한
-        # 변환 증거가 같은 원본 6개와 중복 포함 완전 동일성을 가리킬 때만 허용한다.
+        # Preserve the original Parquet lineage only when fixed-reference CSV conversion evidence
+        # identifies the same six source files and establishes multiset equality.
         conversion = json.loads((raw / "distribution_manifest.json").read_text(encoding="utf-8"))
         legacy = inputs.read_reference(inputs.REFERENCE)
         trusted_original = [{"file": name, **legacy[name]} for name in inputs.base.REQUIRED_FILES]
@@ -487,6 +563,7 @@ def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=raw_inputs.DEFAULT_CONFIG, help="원본과 작업 위치 설정")
     parser.add_argument("--package", type=Path, default=Path("datasets/listenbrainz-preprocessing"), help="검증할 패키지 폴더")

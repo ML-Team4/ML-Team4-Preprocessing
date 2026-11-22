@@ -1,4 +1,4 @@
-"""동봉 원본 CSV·전처리 ZIP과 재생성 CSV 7개의 동일성을 검사한다."""
+"""Compare bundled raw CSVs and the preprocessing archive with reproduced files."""
 from __future__ import annotations
 
 import argparse
@@ -19,7 +19,13 @@ CSV_NAMES = tuple(f"{name}.csv" for name in (
 
 
 def verify(raw: Path, archive_path: Path, reproduced: Path | None = None) -> dict:
-    """자체 manifest와 별도 고정 기준을 함께 확인하며 해제 사본에 의존하지 않는다."""
+    """Verify outputs against independent evidence and report the verification result.
+
+    Args:
+        raw: Directory containing the raw input files.
+        archive_path: Bundled ZIP path.
+        reproduced: Optional regenerated dataset directory.
+    """
     before = inputs.verify_input_files(raw, inputs.read_reference(raw_inputs.CSV_REFERENCE))
     conversion = json.loads((raw / "distribution_manifest.json").read_text(encoding="utf-8"))
     with inputs.working_connection({"cache_dir": ROOT / ".cache/distribution-check", "threads": 2,
@@ -75,6 +81,7 @@ def verify(raw: Path, archive_path: Path, reproduced: Path | None = None) -> dic
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-dir", type=Path, default=ROOT / "datasets/raw")
     parser.add_argument("--archive", type=Path, default=ROOT / f"datasets/{NAME}.zip")

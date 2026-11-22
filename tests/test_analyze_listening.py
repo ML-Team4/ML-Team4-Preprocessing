@@ -1,4 +1,4 @@
-"""반복 청취 분모·미래 정보 분리·평가 후보와 무결성 오류를 검사한다."""
+"""Regression tests for analyze listening."""
 import copy
 import json
 import re
@@ -97,7 +97,7 @@ class ListeningAnalysisTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "무결성"):
                 eda.load_package(self.package)
             real_fingerprint = eda.fingerprint
-            # 무결성 기록까지 바뀌어도 BOM 없는 파일을 독립적으로 거부한다.
+            # Reject a missing BOM even if the integrity manifest was also modified.
             def recorded(p):
                 if p == path:
                     entry = json.loads((self.package / "dataset_manifest.json").read_text())["files"]["users.csv"]
@@ -240,7 +240,7 @@ class ListeningAnalysisTest(unittest.TestCase):
 
 
 class EvaluationReportTest(unittest.TestCase):
-    """게시할 집계표와 보고서의 임시 사본에서 평가 수치 변조를 검사한다."""
+    """Exercise tampered evaluation statistics in temporary report and table copies."""
 
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory(prefix="evaluation-report-")

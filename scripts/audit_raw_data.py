@@ -1,9 +1,4 @@
-"""원본을 변경하지 않고 품질 통계와 제한된 사례만 저장하는 원본 점검.
-
-외부 코드를 복사하지 않고 작성했다. API와 SQL 출처 및 매개변수 설명은
-docs/audit-code-guide.md 참조. 정규화/중복 제거는 임시 진단 집계이며 전달용
-데이터나 모델·가중치·평가 지표를 만들지 않는다.
-"""
+"""Audit raw listening logs without modifying them. Reuse the fixed name rule only for diagnostics; this module does not train a model."""
 from __future__ import annotations
 
 import argparse
@@ -27,7 +22,7 @@ WINDOW_START = "2026-08-17 00:00:00"
 TRAIN_END = "2026-09-28 00:00:00"
 VALIDATION_END = "2026-10-05 00:00:00"
 WINDOW_END = "2026-10-12 00:00:00"
-# Python str.isspace()와 동일한 29개 코드포인트를 고정해 런타임 차이를 막는다.
+# Freeze the 29 Python whitespace code points to avoid runtime-dependent normalization.
 WHITESPACE = tuple(range(0x09, 0x0E)) + tuple(range(0x1C, 0x21)) + (
     0x85, 0xA0, 0x1680, *range(0x2000, 0x200B), 0x2028, 0x2029,
     0x202F, 0x205F, 0x3000,
@@ -37,33 +32,70 @@ REQUIRED_FILES = raw_inputs.LEGACY_FILES
 
 
 def sha256(path: Path) -> str:
-    """스트림으로 읽어 원본 파일 전체를 메모리에 올리지 않는다."""
+    """Hash a file incrementally without loading its full contents into memory.
+
+    Args:
+        path: Filesystem path read or written by this operation.
+    """
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def sql_literal(value: str) -> str:
-    """SQL 문자열 리터럴만 이스케이프한다. 식별자/SQL 조각에는 쓰지 않는다."""
+    """Escape a SQL string value, never an identifier or SQL fragment.
+
+    Args:
+        value: Scalar input to convert or escape.
+    """
     return "'" + value.replace("'", "''") + "'"
 
 
 def rows(con, sql: str, params=None) -> list[dict]:
+    """Execute a small aggregate query and return dictionaries keyed by column name.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        sql: SQL statement for a bounded result.
+        params: Bound query values, or None when no bindings are needed.
+    """
     cursor = con.execute(sql, params) if params is not None else con.execute(sql)
     columns = [column[0] for column in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
 def one(con, sql: str, params=None) -> dict:
+    """Return the first row of a small aggregate query as a dictionary.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        sql: SQL statement for a bounded result.
+        params: Bound query values, or None when no bindings are needed.
+    """
     return rows(con, sql, params)[0]
 
 
 def install_normalizer(con) -> None:
+    """Register the fixed NFC and Unicode-whitespace normalization macro.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+    """
     con.execute("CREATE MACRO norm_name(s) AS trim(regexp_replace(nfc_normalize(s), "
                 + sql_literal(SPACE_PATTERN) + ", ' ', 'g'))")
 
 
 def git_trace(repo: Path) -> dict:
+    """Read repository revision information without modifying Git state.
+
+    Args:
+        repo: Repository directory to inspect.
+    """
     def run(*args):
+        """Read Git metadata using argument lists rather than a shell.
+
+        Args:
+            *args: Git subcommand and flags passed as separate arguments.
+        """
         if not (repo / ".git").exists():
             return None
         result = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
@@ -75,7 +107,14 @@ def git_trace(repo: Path) -> dict:
 
 
 def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
-    """집계·샘플만 반환한다. 외부 경로/원본 user_id는 결과에 내보내지 않는다."""
+    """Compute aggregate quality statistics and bounded examples without exposing original user IDs.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        raw_dir: Directory containing the raw input files.
+        sample_size: Maximum number of diagnostic examples per category.
+        log: Callable receiving progress messages.
+    """
     log("[audit] schema·기간·결측값 점검", flush=True)
     raw_inputs.bind_raw(con, raw_dir, "raw")
     schema = rows(con, "DESCRIBE raw")
@@ -126,7 +165,7 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
         (SELECT DISTINCT user_id, listened_at, artist_name, recording_name FROM raw)""")
     raw_items = one(con, "SELECT count(*) AS items FROM (SELECT DISTINCT artist_name, recording_name FROM raw)")
     log("[audit] 임시 정규화와 중복 진단", flush=True)
-    # 한 번에 9백만 행을 Python 객체로 바꾸지 않고 SQL로 집계한다.
+    # Aggregate in SQL instead of converting nine million rows to Python objects.
     con.execute("""CREATE TABLE normalized AS SELECT user_id, listened_at,
         norm_name(artist_name) AS artist_name, norm_name(recording_name) AS recording_name
         FROM raw WHERE user_id IS NOT NULL AND listened_at IS NOT NULL
@@ -166,8 +205,8 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
     cohort.update(one(con, """SELECT count(*) AS within_cohort_hash_rank_mismatches FROM
         (SELECT user_index, row_number() OVER (ORDER BY md5(cast(user_id AS VARCHAR)||':42')) AS rank
         FROM cohort) WHERE user_index<>rank"""))
-    # 이전 정규화 규칙을 같은 원본에 적용해 집계 차이를 검증한다.
-    # 이 규칙으로 현재 표본을 재선정하거나 새 전처리 규칙을 바꾸지 않는다.
+    # Reapply the previous normalization rule to explain differences in recorded totals.
+    # Do not reselect the cohort or change the current cleaning rule based on this comparison.
     con.execute(r"CREATE MACRO legacy_name(s) AS nfc_normalize(regexp_replace(trim(s), '\s+', ' ', 'g'))")
     con.execute("""CREATE TABLE legacy_events AS SELECT DISTINCT user_id, listened_at,
         legacy_name(artist_name) AS artist_name, legacy_name(recording_name) AS recording_name
@@ -226,7 +265,7 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
     activity_samples = rows(con, f"""SELECT c.user_index AS audit_user_index, d.day, d.events, d.items,
         d.timestamps FROM user_days d JOIN cohort c USING(user_id)
         ORDER BY d.events DESC, c.user_index, d.day LIMIT {sample_size}""")
-    # 문자열 검색은 진단 신호다. 제목 속 podcast 등은 음악에도 존재하므로 삭제 근거가 아니다.
+    # Keyword matches are diagnostic only: music titles can contain words such as podcast.
     suspicious_pattern = "podcast|audiobook|audio book|chapter [0-9]|episode [0-9]|팟캐스트|오디오북"
     suspicious = one(con, """SELECT count(*) AS events, count(DISTINCT user_id) AS users,
         count(DISTINCT (artist_name,recording_name)) AS items FROM events
@@ -234,7 +273,7 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
     suspicious_samples = rows(con, f"""SELECT artist_name, recording_name, count(*) AS events FROM events
         WHERE regexp_matches(lower(artist_name || ' ' || recording_name), ?)
         GROUP BY ALL ORDER BY events DESC, artist_name, recording_name LIMIT {sample_size}""", [suspicious_pattern])
-    # 소문자화했을 때만 일치하는 서로 다른 튜플을 확인하되 실제 키는 변경하지 않는다.
+    # Inspect case-only variants without changing the actual track keys.
     case_samples = rows(con, f"""WITH variants AS (SELECT DISTINCT artist_name, recording_name FROM events)
         SELECT lower(artist_name) AS folded_artist, lower(recording_name) AS folded_recording,
         count(*) AS variants, min(artist_name || ' / ' || recording_name) AS first_example,
@@ -284,14 +323,28 @@ def audit(con, raw_dir: Path, sample_size: int, log=print) -> dict:
 
 
 def render_report(result: dict) -> str:
-    """데이터 점검 결과를 표로 렌더한다. 표의 JSON 문자열은 줄바꿈/HTML을 이스케이프한다."""
+    """Render aggregate results as Markdown, escaping data values where required.
+
+    Args:
+        result: Aggregate results to serialize.
+    """
     def table(records):
+        """Format a bounded sequence of records as a Markdown table.
+
+        Args:
+            records: Bounded records to render.
+        """
         if isinstance(records, dict):
             records = [{"항목":k,"값":v} for k,v in records.items()]
         if not records:
             return "관측 사례 없음.\n"
         keys = list(records[0])
         def cell(value):
+            """Escape a data value for safe display in a Markdown table.
+
+            Args:
+                value: Scalar input to convert or escape.
+            """
             text = json.dumps(value,ensure_ascii=False,default=str) if not isinstance(value,(int,float)) else str(value)
             return text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("|","&#124;")
         return "| " + " | ".join(keys) + " |\n| " + " | ".join("---" for _ in keys) + " |\n" + "\n".join(
@@ -327,15 +380,21 @@ def render_report(result: dict) -> str:
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config",type=Path,default=raw_inputs.DEFAULT_CONFIG,help="원본과 작업 위치 설정")
     args = parser.parse_args()
     config_path = args.config.resolve()
     config = tomllib.loads(config_path.read_text(encoding="utf-8"))
     def resolve(key):
+        """Resolve a configured path relative to the TOML file.
+
+        Args:
+            key: Configuration key naming the path.
+        """
         return (config_path.parent / Path(config[key]).expanduser()).resolve()
     raw_dir, report_dir, cache_dir = (resolve(k) for k in ("raw_dir","report_dir","cache_dir"))
-    # 원본 아래에는 보고서나 임시파일을 만들지 않도록 경로를 먼저 검증한다.
+    # Validate paths before writing so reports and temporary files cannot enter the raw directory.
     for destination in (report_dir,cache_dir):
         if destination == raw_dir or raw_dir in destination.parents:
             raise ValueError("출력·cache 폴더는 raw_dir 밖에 지정해야 합니다")
