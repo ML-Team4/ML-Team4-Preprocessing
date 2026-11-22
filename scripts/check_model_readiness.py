@@ -1,8 +1,4 @@
-"""학습 신호·평가 난도·자원 위험 진단. 모델 학습/추천/성능 평가를 수행하지 않는다.
-
-기존 audit_raw_data의 고정 규칙을 재사용한다. 모든 대규모 테이블은 임시 DB에만
-존재하며 집계·제한 표본만 JSON으로 저장한다. 보고서 해석은 model-readiness-review.md.
-"""
+"""Diagnose training support, evaluation difficulty, and array memory requirements. These diagnostics are not measured recommendation performance."""
 from __future__ import annotations
 
 import argparse
@@ -21,16 +17,21 @@ import audit_raw_data as base
 
 
 def build_overlap(con):
-    """사용자끼리 공유하는 학습 항목 수. item×item 전체 행렬은 만들지 않는다."""
+    """Count training items shared by user pairs without constructing a full item-by-item matrix.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+    """
     con.execute("""CREATE TABLE user_overlap AS SELECT a.u, b.u AS v, count(*) AS shared_items
         FROM dp a JOIN dp b USING(i) WHERE a.u <> b.u GROUP BY a.u,b.u""")
 
 
 def supported_targets(con, target_table):
-    """한 학습 곡과 목표 곡 사이에 양의 cosine similarity가 가능한 정답 쌍.
+    """Find target pairs with a shared-listener cosine path before Top-K truncation; accept only internal table names.
 
-    target_table은 코드에서 정한 내부 테이블명만 받는다. positive log-count나 binary
-    곡 벡터에서 공유 청취자가 존재하는 필요충분조건이며 Top-K 절삭 전 조건이다.
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        target_table: Internal relation containing target pairs.
     """
     if target_table not in {"val_targets", "test_targets", "fixture_targets"}:
         raise ValueError("허용되지 않은 내부 테이블 이름입니다")
@@ -39,6 +40,13 @@ def supported_targets(con, target_table):
 
 
 def materialize_supported_targets(con, target_table, output_table):
+    """Create a relation of targets having a shared-listener similarity path.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        target_table: Internal relation containing target pairs.
+        output_table: Internal SQL relation to create.
+    """
     if (target_table,output_table) not in {("val_targets","val_supported"),("test_targets","test_supported")}:
         raise ValueError("허용되지 않은 내부 테이블 이름입니다")
     con.execute(f"""CREATE TABLE {output_table} AS SELECT DISTINCT t.u,t.i FROM {target_table} t
@@ -46,9 +54,18 @@ def materialize_supported_targets(con, target_table, output_table):
 
 
 def components(con):
-    """항목별 최소 사용자와의 별 모양 간선을 스트리밍해 connected component만 계산한다."""
+    """Stream star-shaped edges per item and compute connected components without retaining all edges.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+    """
     parent = {r[0]:r[0] for r in con.execute("SELECT DISTINCT u FROM dp").fetchall()}
     def find(x):
+        """Find and compress the parent path in the disjoint-set structure.
+
+        Args:
+            x: Node index whose connected-component representative is required.
+        """
         while parent[x]!=x:
             parent[x]=parent[parent[x]]
             x=parent[x]
@@ -70,6 +87,13 @@ def components(con):
 
 
 def diagnose(con, baseline, sample_size=5):
+    """Measure training support, evaluation scope, and array sizes without training a model.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        baseline: Previously computed raw-data audit statistics.
+        sample_size: Maximum number of diagnostic examples per category.
+    """
     print("[readiness] 임시 ID와 train 분포 집계",flush=True)
     con.execute("""CREATE TABLE di AS SELECT row_number() OVER (ORDER BY artist_name,recording_name)-1 AS i,
         artist_name,recording_name,listeners FROM catalog""")
@@ -209,7 +233,7 @@ def diagnose(con, baseline, sample_size=5):
         SELECT count(seconds) AS adjacent_distinct_timestamps,
         count(*) FILTER (WHERE seconds<30) AS gaps_under_30s,
         quantile_cont(seconds,0.5) AS median_gap_seconds FROM gaps"""))
-    # 동시각의 서로 다른 항목 수는 중복도와 다르다. 아래 구간은 기술통계용이고 삭제 기준이 아니다.
+    # Distinct tracks at one timestamp are not duplicate multiplicity; these bands are descriptive, not deletion thresholds.
     con.execute("""CREATE TABLE burst_sizes AS SELECT user_id,listened_at,count(*) AS tracks FROM events
         GROUP BY user_id,listened_at""")
     bursts=base.rows(con,"""SELECT CASE WHEN listened_at<TIMESTAMP '2026-09-28' THEN 'train'
@@ -265,6 +289,7 @@ def diagnose(con, baseline, sample_size=5):
 
 
 def main():
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config",type=Path,default=base.raw_inputs.DEFAULT_CONFIG)
     args=parser.parse_args()

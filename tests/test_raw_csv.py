@@ -1,4 +1,4 @@
-"""주별 CSV의 값·중복·경계 정밀도와 동일 전처리 결과를 검사한다."""
+"""Regression tests for raw csv."""
 import csv
 import gzip
 import json
@@ -47,7 +47,7 @@ class RawCsvTest(unittest.TestCase):
             con.execute('CREATE TABLE expected(user_id BIGINT, listened_at TIMESTAMP, artist_name VARCHAR, recording_name VARCHAR)')
             con.executemany('INSERT INTO expected VALUES (?,?,?,?)', rows)
             self.assertEqual(compare_multiset(con, 'expected', 'raw_input'), {'missing_rows': 0, 'extra_rows': 0})
-            # DISTINCT만 비교하면 놓치는 동일 행 1개 유실을 검출한다.
+            # Detect loss of one identical row, which DISTINCT comparisons would miss.
             con.execute('CREATE TABLE changed AS SELECT * FROM raw_input')
             con.execute('DELETE FROM changed WHERE rowid=(SELECT max(rowid) FROM changed WHERE user_id=9223372036854775806)')
             self.assertEqual(compare_multiset(con, 'raw_input', 'changed'), {'missing_rows': 1, 'extra_rows': 0})

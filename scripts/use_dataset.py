@@ -1,4 +1,4 @@
-"""공통 CSV 7개를 읽고 사용자·곡 매핑, 학습 행렬과 평가 정답을 확인한다."""
+"""Load the seven shared CSVs and verify mappings, sparse counts, popularity, and evaluation targets."""
 from __future__ import annotations
 
 import argparse
@@ -22,7 +22,11 @@ SCHEMAS = {
 
 
 def load_dataset(data_dir: Path) -> dict:
-    """입력 폴더 한 곳으로 파일 무결성·좌표·인기도·기간별 평가 연결을 검사한다."""
+    """Verify file integrity, load all seven CSVs, and check sparse coordinates, popularity, and target links.
+
+    Args:
+        data_dir: Directory containing the seven shared CSVs.
+    """
     manifest = json.loads((data_dir / "dataset_manifest.json").read_text(encoding="utf-8"))
     for name, entry in manifest["files"].items():
         path = data_dir / name
@@ -74,6 +78,7 @@ def load_dataset(data_dir: Path) -> dict:
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=Path("datasets/listenbrainz-preprocessing"))
     args = parser.parse_args()

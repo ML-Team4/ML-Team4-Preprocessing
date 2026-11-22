@@ -1,4 +1,4 @@
-"""EDA 산출물을 별도 SQL 집계·그림 명세·보고서 및 선택적 재실행과 대조한다."""
+"""Check EDA tables and plots using independent SQL and optional reproduction."""
 from __future__ import annotations
 
 import argparse
@@ -16,7 +16,14 @@ REPORT = eda.ROOT / "reports/listening-eda.md"
 
 
 def keyed(rows: list[dict], fields: tuple[str, ...], expected: set[tuple], label: str) -> dict:
-    """행 순서 대신 의미 키를 쓰며 누락·중복·잘못된 기간과 범주를 거부한다."""
+    """Index records by semantic keys and reject missing, duplicated, or unexpected categories.
+
+    Args:
+        rows: Records to index or serialize.
+        fields: Columns forming a semantic record key.
+        expected: Required values or keys.
+        label: Human-readable name used in validation errors.
+    """
     result = {}
     for row in rows:
         key = tuple(row[field] for field in fields)
@@ -29,7 +36,13 @@ def keyed(rows: list[dict], fields: tuple[str, ...], expected: set[tuple], label
 
 
 def report_table(report: Path, headers: list[str], expected: dict[str, list[str]]) -> None:
-    """표의 기간·단위·분모와 표시 자릿수를 포함한 모든 셀을 대조한다."""
+    """Compare all report cells, including units, denominators, and displayed precision.
+
+    Args:
+        report: Markdown report path.
+        headers: Expected table column labels.
+        expected: Required values or keys.
+    """
     matches = [table for table in eda.markdown_tables(report) if table[0] == headers]
     eda.require(len(matches) == 1, f"보고서 표 머리글·기간·단위·분모 불일치: {headers[0]}")
     actual = {}
@@ -43,7 +56,13 @@ def report_table(report: Path, headers: list[str], expected: dict[str, list[str]
 
 
 def verify_evaluation_report(output: Path, analysis: dict, report: Path) -> None:
-    """평가 사용자·정답 요약·구간·사건과 고유 쌍을 집계표에 대조한다."""
+    """Compare reported evaluation populations, targets, events, and pairs against the tables.
+
+    Args:
+        output: Destination file or directory for this operation.
+        analysis: Recorded EDA analysis metadata.
+        report: Markdown report path.
+    """
     reasons = {"no_train": "train 이력 없음", "no_period_activity": "기간 활동 없음",
                "no_target": "활동은 있으나 후보 정답 없음",
                "fewer_than_10_candidates": "정답은 있으나 후보 10개 미만", "eligible": "평가 가능"}
@@ -67,6 +86,12 @@ def verify_evaluation_report(output: Path, analysis: dict, report: Path) -> None
     summary = keyed(read_table(output, "target_summary"), ("population", "metric"),
                     {(p, "target_tracks") for p in periods}, "정답 요약 표")
     def values(keys, spec):
+        """Select expected formatted cells for the supplied semantic keys.
+
+        Args:
+            keys: Semantic row keys to select.
+            spec: Expected cell formatting specification.
+        """
         return [" / ".join(format(float(summary[p, "target_tracks"][k]), spec) for k in keys) for p in periods]
     report_table(report, ["평가 대상 사용자별 정답 수(고유곡/명)", *[
         f"{p} {int(summary[p, 'target_tracks']['users']):,}명" for p in periods]], {
@@ -100,7 +125,15 @@ def verify_evaluation_report(output: Path, analysis: dict, report: Path) -> None
 
 
 def verify_evaluation_tables(con, package: Path, output: Path, analysis: dict, manifest: dict) -> None:
-    """정답은 별도 SQL, 시각 없는 제외 집계는 고정된 패키지 manifest에 대조한다."""
+    """Recompute targets in SQL and check exclusion counts against the fixed package manifest.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        package: Directory containing the exported dataset and manifest.
+        output: Destination file or directory for this operation.
+        analysis: Recorded EDA analysis metadata.
+        manifest: Recorded package metadata, statistics, and hashes.
+    """
     reasons = ("no_train", "no_period_activity", "no_target", "fewer_than_10_candidates", "eligible")
     kinds = ("new_item", "train_seen", "known_item_no_train_user", "candidate")
     user_rows = keyed(read_table(output, "evaluation_users"), ("period", "status"),
@@ -154,6 +187,12 @@ def verify_evaluation_tables(con, package: Path, output: Path, analysis: dict, m
 
 
 def read_table(output: Path, name: str) -> list[dict]:
+    """Load a named EDA CSV as dictionaries.
+
+    Args:
+        output: Destination file or directory for this operation.
+        name: Output table basename.
+    """
     path = output / "tables" / f"{name}.csv"
     with path.open("rb") as stream:
         eda.require(stream.read(3) == b"\xef\xbb\xbf", f"집계표 BOM 누락: {name}")
@@ -164,6 +203,13 @@ def read_table(output: Path, name: str) -> list[dict]:
 
 
 def verify_contents(package: Path, output: Path, reproduce: bool) -> dict:
+    """Check EDA contents and optionally compare a fresh reproduction.
+
+    Args:
+        package: Directory containing the exported dataset and manifest.
+        output: Destination file or directory for this operation.
+        reproduce: Whether to rerun generation and compare the reproduced outputs.
+    """
     package, output = package.resolve(), output.resolve()
     manifest = eda.check_package_reference(package)
     eda.check_output_inventory(output, complete=True)
@@ -292,7 +338,13 @@ def verify_contents(package: Path, output: Path, reproduce: bool) -> dict:
 
 
 def verify(package: Path, output: Path, reproduce: bool) -> dict:
-    """검사 시작·실패·성공을 기록하고 실패 시 기존 성공 기록을 대체한다."""
+    """Verify outputs against independent evidence and report the verification result.
+
+    Args:
+        package: Directory containing the exported dataset and manifest.
+        output: Destination file or directory for this operation.
+        reproduce: Whether to rerun generation and compare the reproduced outputs.
+    """
     package, output = package.resolve(), output.resolve()
     eda.require(not output.is_relative_to(package) and not package.is_relative_to(output), "검증 출력과 입력 패키지 경로가 겹칩니다")
     eda.require(output.is_dir(), "검사할 EDA 결과 폴더가 없습니다")
@@ -308,6 +360,7 @@ def verify(package: Path, output: Path, reproduce: bool) -> dict:
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package", default=Path("datasets/listenbrainz-preprocessing"), type=Path, help="분석에 사용한 CSV 패키지")
     parser.add_argument("--output-dir", default=eda.ROOT / "reports/eda", type=Path, help="검사할 EDA 결과 폴더")

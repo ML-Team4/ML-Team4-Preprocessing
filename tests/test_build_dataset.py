@@ -1,4 +1,4 @@
-"""합성 원본부터 패키지 소비까지 검사하고 로컬 검토용 예제를 재현한다."""
+"""Regression tests for build dataset."""
 import argparse
 import csv
 import json
@@ -35,35 +35,35 @@ KEYS = [(ARTIST, f"t{i:02d}") for i in range(9)] + [(ARTIST, "t08 (Live)"), ("É
 
 
 def fixture_rows(variant):
-    # 11곡. 10번은 1곡, 20번은 2곡을 학습해 각각 후보 10곡, 9곡이다.
+    # There are 11 tracks: users 10 and 20 have 10 and 9 unseen candidates respectively.
     rows = [
         (10, TRAIN, " Cafe\u0301", "t00"),
-        (10, TRAIN, ARTIST, " t00"),  # 같은 사건에서 원문 이름 쌍을 함께 선택
-        (10, "2026-09-27 23:59:59.999999", ARTIST, " t00"),  # 대표 원문 동률
+        (10, TRAIN, ARTIST, " t00"),  # Select the original artist and title together for each event.
+        (10, "2026-09-27 23:59:59.999999", ARTIST, " t00"),  # Tie between original name pairs.
         (20, TRAIN, "Café ", "t01"),
         (20, TRAIN, ARTIST, "t02"),
         (30, TRAIN, ARTIST, "t03"),
         (40, TRAIN, ARTIST, "t04"),
         *((60, TRAIN, artist, title) for artist, title in KEYS[1:]),
         (60, "2026-08-18", "Café ", "t01"),
-        (60, "2026-08-19", "Café ", "t01"),  # t01의 다빈도 원문, 인기도는 여전히 2
+        (60, "2026-08-19", "Café ", "t01"),  # Frequent spelling of t01; distinct-listener popularity remains 2.
     ]
     original = [
         (10, VALIDATION, ARTIST, "t01"),
-        (10, "2026-10-04 23:59:59.999999", ARTIST, "t01"),  # 기간 내 반복
-        (10, VALIDATION, ARTIST, "t00"),  # 기청취곡
+        (10, "2026-10-04 23:59:59.999999", ARTIST, "t01"),  # Repeated listen within the period.
+        (10, VALIDATION, ARTIST, "t00"),  # Track already heard in training.
         (10, VALIDATION, ARTIST, "new"),
         (10, "2026-09-29", ARTIST, "new"),
-        (20, VALIDATION, ARTIST, "t00"),  # 후보 9개, 정답이 있어도 제외
-        (30, VALIDATION, ARTIST, "t03"),  # 기청취곡만 있음
+        (20, VALIDATION, ARTIST, "t00"),  # Exclude a user with only nine candidates even if a target exists.
+        (30, VALIDATION, ARTIST, "t03"),  # Only training-seen tracks.
         (30, VALIDATION, ARTIST, "new"),
-        (50, VALIDATION, ARTIST, "t00"),  # train 이력이 없는 사용자
-        (10, TEST, ARTIST, "t01"),  # validation 정답의 재등장
+        (50, VALIDATION, ARTIST, "t00"),  # User without training history.
+        (10, TEST, ARTIST, "t01"),  # A validation target can also appear in test.
         (10, "2026-10-11 23:59:59.999999", ARTIST, "t02"),
         (20, TEST, ARTIST, "t00"),
-        (40, TEST, ARTIST, "t03"),  # test에만 포함되는 사용자
+        (40, TEST, ARTIST, "t03"),  # User eligible only for test.
         (50, TEST, ARTIST, "new"),
-        (60, "2026-10-12 00:00:00", ARTIST, "t00"),  # 종료 미포함
+        (60, "2026-10-12 00:00:00", ARTIST, "t00"),  # The end boundary is exclusive.
     ]
     if variant == "future":
         rows += [(10, VALIDATION, "Café ", "t03"), (50, TEST, ARTIST, "t01")]
@@ -77,7 +77,11 @@ def fixture_rows(variant):
 
 @contextmanager
 def example_input(rows):
-    """합성 원본과 입력 기준을 사용하는 동안 임시 폴더를 보존한다."""
+    """Keep synthetic input files and fixed references alive for the test context.
+
+    Args:
+        rows: Records to index or serialize.
+    """
     cohort = sorted({user_id for user_id, *_ in rows})
     with tempfile.TemporaryDirectory(prefix="dataset-input-") as folder:
         fixture = Path(folder)
@@ -108,7 +112,7 @@ def example_input(rows):
 
 
 def run_example(output_root, version, variant="original", *, rows=None):
-    """합성 원본으로 실제 패키지 생성 경로를 호출한다."""
+    """Exercise the real package builder using synthetic input."""
     with example_input(fixture_rows(variant) if rows is None else rows) as source:
         return build.build_package(output_root=output_root, version=version, **source,
                                    example_script=Path(__file__).resolve(), example_variant=variant)
@@ -135,7 +139,11 @@ def pairs(path):
 
 
 def convert_to_legacy_package(package):
-    """과거 계약 패키지의 재검증 지원을 검사할 입력을 만든다."""
+    """Construct a legacy-format fixture to test backward-compatible validation.
+
+    Args:
+        package: Directory containing the exported dataset and manifest.
+    """
     manifest_path = package / "dataset_manifest.json"
     manifest = json.loads(manifest_path.read_text())
     matrix = matrix_from_csv(package)
@@ -173,7 +181,7 @@ class DatasetBuildTest(unittest.TestCase):
         directory = tempfile.TemporaryDirectory(prefix="dataset-test-")
         self.addCleanup(directory.cleanup)
         self.output = Path(directory.name).resolve()
-        # CSV 배치 경계와 동일 사용자 행의 배치 경계 통과를 확인한다.
+        # Exercise CSV batch boundaries, including one user spanning two batches.
         batches = patch.object(build, "BATCH_ROWS", 4)
         batches.start()
         self.addCleanup(batches.stop)
@@ -293,7 +301,7 @@ class DatasetBuildTest(unittest.TestCase):
             self.assertEqual(result["evaluation"]["validation"]["target_pairs"], 1)
             self.assertEqual(result["evaluation"]["test"]["target_pairs"], 3)
 
-            # 규모와 파일 해시 검사가 통과해도 같은 값의 다른 좌표와 같은 합계의 다른 횟수를 잡아낸다.
+            # Detect altered coordinates or counts even when dimensions, hashes, and totals pass.
             targets = package / "validation_targets.csv"
             original = read_table(targets)
             with targets.open("wb") as stream:
@@ -386,7 +394,7 @@ class DatasetBuildTest(unittest.TestCase):
                             independent.validate_dataset(package=package, **source)
                         loader.assert_not_called()
 
-            # 계약에서 허용한 int64 구조 인덱스도 소비자 API의 자료형 변환과 무관하게 검증한다.
+            # Validate allowed int64 structural indices before consumer-side type conversion.
             original["indices"] = original["indices"].astype(np.int64)
             original["indptr"] = original["indptr"].astype(np.int64)
             np.savez_compressed(path, **original)
@@ -439,7 +447,7 @@ class DatasetBuildTest(unittest.TestCase):
             self.assertEqual((package / f"{period}_users.csv").read_text(encoding="utf-8-sig"), "user_idx\n")
 
     def test_retry_same_version_after_process_exits_during_write(self):
-        # 자식 프로세스를 정리 구문 실행 전에 종료해 부분 저장과 재시도를 확인한다.
+        # Kill the child before cleanup to exercise partial writes and retry behavior.
         child = """
 import os, sys
 from pathlib import Path

@@ -1,5 +1,5 @@
-# 다운로드본에서 그대로 사용한다. 상대 경로의 기준은 이 설정 파일의 폴더다.
-# 기존 Parquet은 paths.local.toml로 복사하고 raw_dir만 해당 폴더로 바꾼다.
+# Works in a downloaded repository; relative paths are based on this configuration directory.
+# For legacy Parquet, copy to paths.local.toml and change raw_dir to its directory.
 raw_dir = "../datasets/raw"
 report_dir = "../.cache/audit-reports"
 cache_dir = "../.cache/preprocessing"

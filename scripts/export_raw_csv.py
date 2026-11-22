@@ -1,4 +1,4 @@
-"""검증된 8주 원본을 값·중복을 보존한 주별 gzip CSV로 변환한다."""
+"""Export eight weeks of raw events as weekly gzip CSVs without losing values or duplicate multiplicity."""
 from __future__ import annotations
 
 import argparse
@@ -13,6 +13,12 @@ from audit_raw_data import one, sha256, sql_literal
 
 
 def raw_stats(con, relation: str) -> dict:
+    """Count raw rows, users, tracks, and timestamp bounds for a relation.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        relation: Internal SQL relation to summarize.
+    """
     result = one(con, f"""SELECT count(*) AS rows, count(DISTINCT user_id) AS users,
         min(listened_at) AS first_utc, max(listened_at) AS last_utc FROM {relation}""")
     return {key: str(value) if key.endswith("_utc") and value is not None else value
@@ -20,14 +26,27 @@ def raw_stats(con, relation: str) -> dict:
 
 
 def compare_multiset(con, left: str, right: str) -> dict:
-    """EXCEPT ALL을 양방향으로 적용해 같은 행의 출현 횟수 차이까지 검출한다."""
+    """Apply EXCEPT ALL in both directions so duplicate multiplicities are compared.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        left: First internal SQL relation.
+        right: Second internal SQL relation.
+    """
     return {name: con.execute(f"SELECT count(*) FROM (SELECT * FROM {a} EXCEPT ALL "
                              f"SELECT * FROM {b})").fetchone()[0]
             for name, a, b in (("missing_rows", left, right), ("extra_rows", right, left))}
 
 
 def export_raw(raw: Path, output: Path, reference: Path, *, expected_rows: int = 9_350_628) -> dict:
-    """기존 입력의 고정 무결성 기준을 확인한 뒤 새 위치에만 배포 파일을 만든다."""
+    """Verify original inputs and export lossless weekly gzip CSVs to a new directory.
+
+    Args:
+        raw: Directory containing the raw input files.
+        output: Destination file or directory for this operation.
+        reference: Fixed input integrity reference.
+        expected_rows: Required raw row count.
+    """
     before = inputs.verify_input_files(raw, inputs.read_reference())
     if output.exists() or reference.exists():
         raise FileExistsError("기존 원본 배포본과 기준을 보존하도록 새 출력 경로를 지정하세요")
@@ -59,7 +78,7 @@ def export_raw(raw: Path, output: Path, reference: Path, *, expected_rows: int =
             for name in raw_inputs.METADATA_FILES:
                 shutil.copyfile(raw / name, output / name)
             raw_inputs.bind_raw(con, output, "converted")
-            # 재로딩한 CSV를 고정해 양방향 대조 시 같은 행 집합을 읽는다.
+            # Materialize the reloaded CSV so both comparison directions read the same rows.
             con.execute("CREATE TABLE csv_values AS SELECT * FROM converted")
             converted = raw_stats(con, "csv_values")
             differences = compare_multiset(con, "original", "csv_values")
@@ -94,6 +113,7 @@ def export_raw(raw: Path, output: Path, reference: Path, *, expected_rows: int =
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-dir", type=Path, required=True, help="고정 기준으로 확인할 기존 Parquet 원본 폴더")
     parser.add_argument("--output-dir", type=Path, default=Path("datasets/raw"))

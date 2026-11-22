@@ -1,4 +1,4 @@
-"""검증된 CSV 패키지의 학습 인기도·사용자 분포와 평가 범위를 집계한다."""
+"""Describe training popularity, user histories, and evaluation scope from the verified shared package."""
 from __future__ import annotations
 
 import argparse
@@ -31,17 +31,32 @@ RECORD_PATHS = frozenset({"analysis_manifest.json", "verification.json"})
 
 
 def require(condition: bool, message: str) -> None:
-    """불일치를 발견하면 결과를 저장하기 전에 검사를 중단한다."""
+    """Stop before saving outputs if a validation condition fails.
+
+    Args:
+        condition: Boolean condition that must hold.
+        message: Error message raised when the condition fails.
+    """
     if not condition:
         raise ValueError(message)
 
 
 def fingerprint(path: Path) -> dict:
+    """Return file size and SHA256 digest.
+
+    Args:
+        path: Filesystem path read or written by this operation.
+    """
     return {"bytes": path.stat().st_size, "sha256": sha256(path)}
 
 
 def check_output_inventory(output: Path, *, complete: bool) -> None:
-    """고정된 예정 상대경로와 실제 파일 목록을 양방향으로 대조한다."""
+    """Compare expected relative output paths with the actual file inventory.
+
+    Args:
+        output: Destination file or directory for this operation.
+        complete: Whether every expected output must already exist.
+    """
     actual = {str(p.relative_to(output)) for p in output.rglob("*") if p.is_file() or p.is_symlink()}
     extra = actual - ARTIFACT_PATHS - RECORD_PATHS
     missing = (ARTIFACT_PATHS | RECORD_PATHS) - actual if complete else set()
@@ -50,7 +65,11 @@ def check_output_inventory(output: Path, *, complete: bool) -> None:
 
 
 def check_package_reference(package: Path) -> dict:
-    """원본 대조 성공 기록의 고정 식별값을 적용하며 입력에서 기준을 만들지 않는다."""
+    """Apply a separately fixed package identity instead of deriving the reference from the input.
+
+    Args:
+        package: Directory containing the exported dataset and manifest.
+    """
     reference = json.loads(REFERENCE.read_text(encoding="utf-8"))
     require(reference["dataset_version"] == VERSION and reference["matches"] is True
             and bool(reference["checks"]) and all(v is True for v in reference["checks"].values()),
@@ -66,14 +85,23 @@ def check_package_reference(package: Path) -> dict:
 
 
 def write_verification_record(output: Path, result: dict) -> None:
-    """최신 검증 상태를 기록해 이전 성공을 현재 결과로 오인하지 않게 한다."""
+    """Record the latest verification status so a stale success cannot represent a failed run.
+
+    Args:
+        output: Destination file or directory for this operation.
+        result: Aggregate results to serialize.
+    """
     output.mkdir(parents=True, exist_ok=True)
     (output / "verification.json").write_text(
         json.dumps({"dataset_version": VERSION, **result}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def markdown_tables(path: Path) -> list[list[list[str]]]:
-    """기존 검증표를 재사용하도록 Markdown의 표 셀을 읽는다."""
+    """Parse existing Markdown table cells for comparison and reuse.
+
+    Args:
+        path: Filesystem path read or written by this operation.
+    """
     tables, current = [], []
     for line in path.read_text(encoding="utf-8").splitlines() + [""]:
         if line.startswith("|"):
@@ -87,17 +115,32 @@ def markdown_tables(path: Path) -> list[list[list[str]]]:
 
 
 def source_table(path: str, first_headers: list[str]) -> list[list[str]]:
+    """Find the existing report table matching the supplied header prefix.
+
+    Args:
+        path: Filesystem path read or written by this operation.
+        first_headers: Header prefix identifying the source table.
+    """
     matches = [t for t in markdown_tables(ROOT / path) if t[0][:len(first_headers)] == first_headers]
     require(len(matches) == 1, f"기존 보고서의 표를 식별할 수 없습니다: {path} {first_headers}")
     return matches[0][1:]
 
 
 def integer(value: str) -> int:
+    """Parse a displayed integer after removing thousands separators.
+
+    Args:
+        value: Scalar input to convert or escape.
+    """
     return int(value.replace(",", "").replace("−", "-"))
 
 
 def load_package(package: Path) -> tuple[dict, dict, dict]:
-    """BOM·자료형·순서·전체 파일 무결성을 검사하고 수치 열만 보관한다."""
+    """Validate BOM, types, ordering, and hashes, retaining numerical columns for analysis.
+
+    Args:
+        package: Directory containing the exported dataset and manifest.
+    """
     manifest = check_package_reference(package)
     require(manifest["dataset_version"] == VERSION and manifest["contract_version"] == "2.0.0"
             and manifest["rules_version"] == "1.0.0", "공통 CSV의 데이터·계약·규칙 버전이 다릅니다")
@@ -144,7 +187,12 @@ def load_package(package: Path) -> tuple[dict, dict, dict]:
 
 
 def aggregate_train(data: dict, manifest: dict) -> tuple[dict, dict, np.ndarray, np.ndarray]:
-    """고유 좌표와 int64 횟수를 열 단위로 집계하며 dense matrix를 만들지 않는다."""
+    """Aggregate unique coordinates and int64 counts without constructing a dense matrix.
+
+    Args:
+        data: Validated numerical columns from the package.
+        manifest: Recorded package metadata, statistics, and hashes.
+    """
     n_users, n_items = len(data["users"]["user_idx"]), len(data["items"]["item_idx"])
     require(n_users > 0 and n_items > 0, "빈 학습 패키지는 이 EDA의 대상이 아닙니다")
     require(np.array_equal(data["users"]["user_idx"], np.arange(n_users))
@@ -183,6 +231,13 @@ def aggregate_train(data: dict, manifest: dict) -> tuple[dict, dict, np.ndarray,
 
 
 def distribution(values: np.ndarray, population: str, metric: str) -> dict:
+    """Calculate summary statistics for a named population and metric.
+
+    Args:
+        values: Numerical observations to summarize.
+        population: Population label attached to a distribution.
+        metric: Metric label attached to a distribution.
+    """
     quantiles = np.quantile(values, [0, .25, .5, .75, .9, .95, .99, 1], method="linear")
     return {"population": population, "metric": metric, "users": len(values),
             "mean": float(np.mean(values)), **dict(zip(
@@ -190,6 +245,12 @@ def distribution(values: np.ndarray, population: str, metric: str) -> dict:
 
 
 def histogram(values: np.ndarray, population: str) -> list[dict]:
+    """Count observations in the predefined training-history bands.
+
+    Args:
+        values: Numerical observations to summarize.
+        population: Population label attached to a distribution.
+    """
     edges = [0, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
     edges.append(max(10001, int(values.max()) + 1))
     counts, _ = np.histogram(values, bins=edges)
@@ -199,7 +260,13 @@ def histogram(values: np.ndarray, population: str) -> list[dict]:
 
 
 def aggregate_evaluation(data: dict, manifest: dict, user_tracks: np.ndarray) -> tuple[dict, list, list, list]:
-    """정답 CSV를 검사하고 시각·제외 사유는 manifest의 검증된 집계를 사용한다."""
+    """Validate target CSVs and use verified manifest counts for timestamps and exclusion reasons.
+
+    Args:
+        data: Validated numerical columns from the package.
+        manifest: Recorded package metadata, statistics, and hashes.
+        user_tracks: Training distinct-track counts indexed by user.
+    """
     train = data["train_interactions"]
     train_keys = (train["user_idx"] << 32) + train["item_idx"]
     n_users, n_items = len(user_tracks), len(data["items"]["item_idx"])
@@ -271,7 +338,14 @@ def aggregate_evaluation(data: dict, manifest: dict, user_tracks: np.ndarray) ->
 
 
 def reuse_reports(manifest: dict, stats: dict, tables: dict, data: dict) -> None:
-    """기존 원본 검증·정규화·중복 처리·시간 분할 표를 재사용한다."""
+    """Reuse verified raw-data, normalization, deduplication, and split tables.
+
+    Args:
+        manifest: Recorded package metadata, statistics, and hashes.
+        stats: Computed aggregate statistics.
+        tables: Named output tables.
+        data: Validated numerical columns from the package.
+    """
     csv_rows = source_table(SOURCES[0], ["파일", "CSV 행 수"])
     for name, rows, difference in csv_rows:
         require(integer(rows) == len(next(iter(data[name.removesuffix(".csv")].values())))
@@ -325,7 +399,12 @@ def reuse_reports(manifest: dict, stats: dict, tables: dict, data: dict) -> None
 
 
 def write_table(path: Path, rows: list[dict]) -> None:
-    """헤더와 BOM이 있는 CSV를 저장하고 인용·개행을 포함한 값을 재대조한다."""
+    """Write a header and BOM, then reread and compare CSV values including quoted newlines.
+
+    Args:
+        path: Filesystem path read or written by this operation.
+        rows: Records to index or serialize.
+    """
     require(bool(rows), f"빈 집계표: {path.name}")
     with path.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
@@ -338,13 +417,23 @@ def write_table(path: Path, rows: list[dict]) -> None:
 
 
 def draw_figures(output: Path, stats: dict) -> dict:
-    """저장된 집계표를 다시 읽어 그래프 수치·분모와 내부 명세를 일치시킨다."""
+    """Read saved tables and align plotted values and denominators with the figure specification.
+
+    Args:
+        output: Destination file or directory for this operation.
+        stats: Computed aggregate statistics.
+    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.ticker import StrMethodFormatter
 
     def read(name):
+        """Load the selected numerical CSV columns after schema validation.
+
+        Args:
+            name: Output table basename.
+        """
         with (output / "tables" / f"{name}.csv").open(encoding="utf-8-sig", newline="") as stream:
             return list(csv.DictReader(stream))
 
@@ -397,6 +486,12 @@ def draw_figures(output: Path, stats: dict) -> dict:
 
 
 def analyze(package: Path, output: Path) -> dict:
+    """Validate a package and produce reproducible EDA tables, plots, and metadata.
+
+    Args:
+        package: Directory containing the exported dataset and manifest.
+        output: Destination file or directory for this operation.
+    """
     package, output = package.resolve(), output.resolve()
     require(not output.is_relative_to(package) and not package.is_relative_to(output), "출력과 입력 패키지 경로가 겹칩니다")
     check_output_inventory(output, complete=False)
@@ -452,6 +547,7 @@ def analyze(package: Path, output: Path) -> dict:
 
 
 def main() -> None:
+    """Parse command-line options and run this module; failures propagate as a nonzero exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package", type=Path, default=Path("datasets/listenbrainz-preprocessing"), help="읽기 전용 공통 CSV 패키지")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "reports/eda", help="집계표·그림·내부 검사 기록 저장 위치")

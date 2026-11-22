@@ -1,4 +1,4 @@
-"""주별 gzip CSV와 기존 Parquet에 동일한 명시적 원본 스키마를 적용한다."""
+"""Apply one explicit raw schema to weekly gzip CSVs and legacy Parquet files."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -22,11 +22,20 @@ COLUMNS = {"user_id": "BIGINT", "listened_at": "TIMESTAMP",
 
 
 def is_csv(raw: Path) -> bool:
-    """명시적 주별 파일이 있으면 CSV 배포본으로 판단하고 불완전한 세트도 거부한다."""
+    """Detect weekly CSV input and reject incomplete weekly file sets.
+
+    Args:
+        raw: Directory containing the raw input files.
+    """
     return raw.is_dir() and any(raw.glob("listens_*.csv.gz"))
 
 
 def required_files(raw: Path) -> tuple[str, ...]:
+    """Return the required input filenames for the detected raw format.
+
+    Args:
+        raw: Directory containing the raw input files.
+    """
     if is_csv(raw):
         actual = {p.name for p in raw.glob("listens_*.csv.gz")}
         if actual != set(WEEKLY_FILES):
@@ -36,12 +45,23 @@ def required_files(raw: Path) -> tuple[str, ...]:
 
 
 def resolve_reference(raw: Path, reference: Path) -> Path:
-    """기존 기본 기준을 사용한 호출만 CSV의 별도 고정 기준으로 연결한다."""
+    """Select the CSV-specific fixed reference when a caller uses the legacy default.
+
+    Args:
+        raw: Directory containing the raw input files.
+        reference: Fixed input integrity reference.
+    """
     return CSV_REFERENCE if is_csv(raw) and reference.resolve() == PARQUET_REFERENCE else reference
 
 
 def bind_raw(con, source: Path, view: str = "raw_input") -> None:
-    """자료형 추론 없이 문자열·NULL·마이크로초를 보존하는 읽기 전용 뷰를 만든다."""
+    """Bind a read-only relation with explicit types, preserving strings, nulls, and microseconds.
+
+    Args:
+        con: Open DuckDB connection holding the working SQL relations.
+        source: Raw file or input directory to bind.
+        view: SQL view name to register.
+    """
     if not view.isidentifier():
         raise ValueError("원본 뷰 이름이 올바르지 않습니다")
     if is_csv(source) or source.name.endswith(".csv.gz"):
@@ -49,7 +69,7 @@ def bind_raw(con, source: Path, view: str = "raw_input") -> None:
             required_files(source)
         files = [source / name for name in WEEKLY_FILES] if source.is_dir() else [source]
         paths = "[" + ",".join("'" + str(path).replace("'", "''") + "'" for path in files) + "]"
-        # 빈 인용 문자열은 이름 그대로 보존하며, 인용하지 않은 빈 값만 NULL이다.
+        # Preserve quoted empty strings as names; only unquoted empty fields represent NULL.
         con.sql(f"""SELECT * FROM read_csv({paths}, header=true,
             columns={{'user_id':'BIGINT','listened_at':'TIMESTAMP',
                       'artist_name':'VARCHAR','recording_name':'VARCHAR'}},

@@ -1,4 +1,4 @@
-"""정규화 충돌·반복 보존·미래 신규곡 제외·원본 불변성을 확인하는 작은 회귀 검사."""
+"""Regression tests for audit."""
 import importlib.util
 import tempfile
 import unittest
@@ -54,7 +54,7 @@ class AuditRulesTest(unittest.TestCase):
             self.assertEqual(result["raw_exact"]["excess_duplicate_rows"],1)
             self.assertEqual(result["diagnostic"]["excess_duplicate_rows"],2)
             self.assertEqual(result["diagnostic"]["invalid_or_outside_rows"],3)
-            self.assertEqual(result["train"]["items"],18)  # 구분자를 포함한 두 튜플도 별개
+            self.assertEqual(result["train"]["items"],18)  # Tuples containing delimiters must remain distinct.
             self.assertEqual(result["repeats"]["train_repeat_events_beyond_first"],1)
             self.assertEqual(result["cohort"]["train_item_count_mismatches"],0)
             self.assertEqual(result["evaluation"]["validation"]["target_pairs"],1)
