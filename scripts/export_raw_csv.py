@@ -13,12 +13,7 @@ from audit_raw_data import one, sha256, sql_literal
 
 
 def raw_stats(con, relation: str) -> dict:
-    """Count raw rows, users, tracks, and timestamp bounds for a relation.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        relation: Internal SQL relation to summarize.
-    """
+    """Count raw rows, users, tracks, and timestamp bounds for a relation."""
     result = one(con, f"""SELECT count(*) AS rows, count(DISTINCT user_id) AS users,
         min(listened_at) AS first_utc, max(listened_at) AS last_utc FROM {relation}""")
     return {key: str(value) if key.endswith("_utc") and value is not None else value
@@ -26,13 +21,7 @@ def raw_stats(con, relation: str) -> dict:
 
 
 def compare_multiset(con, left: str, right: str) -> dict:
-    """Apply EXCEPT ALL in both directions so duplicate multiplicities are compared.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        left: First internal SQL relation.
-        right: Second internal SQL relation.
-    """
+    """Apply EXCEPT ALL in both directions so duplicate multiplicities are compared."""
     return {name: con.execute(f"SELECT count(*) FROM (SELECT * FROM {a} EXCEPT ALL "
                              f"SELECT * FROM {b})").fetchone()[0]
             for name, a, b in (("missing_rows", left, right), ("extra_rows", right, left))}
@@ -41,11 +30,7 @@ def compare_multiset(con, left: str, right: str) -> dict:
 def export_raw(raw: Path, output: Path, reference: Path, *, expected_rows: int = 9_350_628) -> dict:
     """Verify original inputs and export lossless weekly gzip CSVs to a new directory.
 
-    Args:
-        raw: Directory containing the raw input files.
-        output: Destination file or directory for this operation.
-        reference: Fixed input integrity reference.
-        expected_rows: Required raw row count.
+    Require expected_rows to match before writing the weekly files.
     """
     before = inputs.verify_input_files(raw, inputs.read_reference())
     if output.exists() or reference.exists():

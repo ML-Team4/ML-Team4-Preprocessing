@@ -22,20 +22,12 @@ COLUMNS = {"user_id": "BIGINT", "listened_at": "TIMESTAMP",
 
 
 def is_csv(raw: Path) -> bool:
-    """Detect weekly CSV input and reject incomplete weekly file sets.
-
-    Args:
-        raw: Directory containing the raw input files.
-    """
+    """Detect a directory containing weekly gzip CSVs."""
     return raw.is_dir() and any(raw.glob("listens_*.csv.gz"))
 
 
 def required_files(raw: Path) -> tuple[str, ...]:
-    """Return the required input filenames for the detected raw format.
-
-    Args:
-        raw: Directory containing the raw input files.
-    """
+    """Return the required input filenames for the detected raw format."""
     if is_csv(raw):
         actual = {p.name for p in raw.glob("listens_*.csv.gz")}
         if actual != set(WEEKLY_FILES):
@@ -45,23 +37,12 @@ def required_files(raw: Path) -> tuple[str, ...]:
 
 
 def resolve_reference(raw: Path, reference: Path) -> Path:
-    """Select the CSV-specific fixed reference when a caller uses the legacy default.
-
-    Args:
-        raw: Directory containing the raw input files.
-        reference: Fixed input integrity reference.
-    """
+    """Select the CSV-specific fixed reference when a caller uses the legacy default."""
     return CSV_REFERENCE if is_csv(raw) and reference.resolve() == PARQUET_REFERENCE else reference
 
 
 def bind_raw(con, source: Path, view: str = "raw_input") -> None:
-    """Bind a read-only relation with explicit types, preserving strings, nulls, and microseconds.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        source: Raw file or input directory to bind.
-        view: SQL view name to register.
-    """
+    """Register the raw files under view with explicit types to preserve timestamp precision."""
     if not view.isidentifier():
         raise ValueError("원본 뷰 이름이 올바르지 않습니다")
     if is_csv(source) or source.name.endswith(".csv.gz"):

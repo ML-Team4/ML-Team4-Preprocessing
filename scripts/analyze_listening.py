@@ -31,32 +31,18 @@ RECORD_PATHS = frozenset({"analysis_manifest.json", "verification.json"})
 
 
 def require(condition: bool, message: str) -> None:
-    """Stop before saving outputs if a validation condition fails.
-
-    Args:
-        condition: Boolean condition that must hold.
-        message: Error message raised when the condition fails.
-    """
+    """Stop before saving outputs if a validation condition fails."""
     if not condition:
         raise ValueError(message)
 
 
 def fingerprint(path: Path) -> dict:
-    """Return file size and SHA256 digest.
-
-    Args:
-        path: Filesystem path read or written by this operation.
-    """
+    """Return file size and SHA256 digest."""
     return {"bytes": path.stat().st_size, "sha256": sha256(path)}
 
 
 def check_output_inventory(output: Path, *, complete: bool) -> None:
-    """Compare expected relative output paths with the actual file inventory.
-
-    Args:
-        output: Destination file or directory for this operation.
-        complete: Whether every expected output must already exist.
-    """
+    """Reject unexpected files. With complete=True, also reject missing outputs."""
     actual = {str(p.relative_to(output)) for p in output.rglob("*") if p.is_file() or p.is_symlink()}
     extra = actual - ARTIFACT_PATHS - RECORD_PATHS
     missing = (ARTIFACT_PATHS | RECORD_PATHS) - actual if complete else set()
@@ -65,11 +51,7 @@ def check_output_inventory(output: Path, *, complete: bool) -> None:
 
 
 def check_package_reference(package: Path) -> dict:
-    """Apply a separately fixed package identity instead of deriving the reference from the input.
-
-    Args:
-        package: Directory containing the exported dataset and manifest.
-    """
+    """Apply a separately fixed package identity instead of deriving the reference from the input."""
     reference = json.loads(REFERENCE.read_text(encoding="utf-8"))
     require(reference["dataset_version"] == VERSION and reference["matches"] is True
             and bool(reference["checks"]) and all(v is True for v in reference["checks"].values()),
@@ -85,23 +67,14 @@ def check_package_reference(package: Path) -> dict:
 
 
 def write_verification_record(output: Path, result: dict) -> None:
-    """Record the latest verification status so a stale success cannot represent a failed run.
-
-    Args:
-        output: Destination file or directory for this operation.
-        result: Aggregate results to serialize.
-    """
+    """Record the latest verification status so a stale success cannot represent a failed run."""
     output.mkdir(parents=True, exist_ok=True)
     (output / "verification.json").write_text(
         json.dumps({"dataset_version": VERSION, **result}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def markdown_tables(path: Path) -> list[list[list[str]]]:
-    """Parse existing Markdown table cells for comparison and reuse.
-
-    Args:
-        path: Filesystem path read or written by this operation.
-    """
+    """Parse existing Markdown table cells for comparison and reuse."""
     tables, current = [], []
     for line in path.read_text(encoding="utf-8").splitlines() + [""]:
         if line.startswith("|"):
@@ -115,32 +88,19 @@ def markdown_tables(path: Path) -> list[list[list[str]]]:
 
 
 def source_table(path: str, first_headers: list[str]) -> list[list[str]]:
-    """Find the existing report table matching the supplied header prefix.
-
-    Args:
-        path: Filesystem path read or written by this operation.
-        first_headers: Header prefix identifying the source table.
-    """
+    """Find the existing report table matching the supplied header prefix."""
     matches = [t for t in markdown_tables(ROOT / path) if t[0][:len(first_headers)] == first_headers]
     require(len(matches) == 1, f"기존 보고서의 표를 식별할 수 없습니다: {path} {first_headers}")
     return matches[0][1:]
 
 
 def integer(value: str) -> int:
-    """Parse a displayed integer after removing thousands separators.
-
-    Args:
-        value: Scalar input to convert or escape.
-    """
+    """Parse a displayed integer after removing thousands separators."""
     return int(value.replace(",", "").replace("−", "-"))
 
 
 def load_package(package: Path) -> tuple[dict, dict, dict]:
-    """Validate BOM, types, ordering, and hashes, retaining numerical columns for analysis.
-
-    Args:
-        package: Directory containing the exported dataset and manifest.
-    """
+    """Validate BOM, types, ordering, and hashes, retaining numerical columns for analysis."""
     manifest = check_package_reference(package)
     require(manifest["dataset_version"] == VERSION and manifest["contract_version"] == "2.0.0"
             and manifest["rules_version"] == "1.0.0", "공통 CSV의 데이터·계약·규칙 버전이 다릅니다")
@@ -187,12 +147,7 @@ def load_package(package: Path) -> tuple[dict, dict, dict]:
 
 
 def aggregate_train(data: dict, manifest: dict) -> tuple[dict, dict, np.ndarray, np.ndarray]:
-    """Aggregate unique coordinates and int64 counts without constructing a dense matrix.
-
-    Args:
-        data: Validated numerical columns from the package.
-        manifest: Recorded package metadata, statistics, and hashes.
-    """
+    """Aggregate unique coordinates and int64 counts without constructing a dense matrix."""
     n_users, n_items = len(data["users"]["user_idx"]), len(data["items"]["item_idx"])
     require(n_users > 0 and n_items > 0, "빈 학습 패키지는 이 EDA의 대상이 아닙니다")
     require(np.array_equal(data["users"]["user_idx"], np.arange(n_users))
@@ -231,13 +186,7 @@ def aggregate_train(data: dict, manifest: dict) -> tuple[dict, dict, np.ndarray,
 
 
 def distribution(values: np.ndarray, population: str, metric: str) -> dict:
-    """Calculate summary statistics for a named population and metric.
-
-    Args:
-        values: Numerical observations to summarize.
-        population: Population label attached to a distribution.
-        metric: Metric label attached to a distribution.
-    """
+    """Calculate summary statistics for a named population and metric."""
     quantiles = np.quantile(values, [0, .25, .5, .75, .9, .95, .99, 1], method="linear")
     return {"population": population, "metric": metric, "users": len(values),
             "mean": float(np.mean(values)), **dict(zip(
@@ -245,12 +194,7 @@ def distribution(values: np.ndarray, population: str, metric: str) -> dict:
 
 
 def histogram(values: np.ndarray, population: str) -> list[dict]:
-    """Count observations in the predefined training-history bands.
-
-    Args:
-        values: Numerical observations to summarize.
-        population: Population label attached to a distribution.
-    """
+    """Count observations in the predefined training-history bands."""
     edges = [0, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
     edges.append(max(10001, int(values.max()) + 1))
     counts, _ = np.histogram(values, bins=edges)
@@ -260,13 +204,7 @@ def histogram(values: np.ndarray, population: str) -> list[dict]:
 
 
 def aggregate_evaluation(data: dict, manifest: dict, user_tracks: np.ndarray) -> tuple[dict, list, list, list]:
-    """Validate target CSVs and use verified manifest counts for timestamps and exclusion reasons.
-
-    Args:
-        data: Validated numerical columns from the package.
-        manifest: Recorded package metadata, statistics, and hashes.
-        user_tracks: Training distinct-track counts indexed by user.
-    """
+    """Validate target CSVs and use verified manifest counts for timestamps and exclusion reasons."""
     train = data["train_interactions"]
     train_keys = (train["user_idx"] << 32) + train["item_idx"]
     n_users, n_items = len(user_tracks), len(data["items"]["item_idx"])
@@ -338,14 +276,7 @@ def aggregate_evaluation(data: dict, manifest: dict, user_tracks: np.ndarray) ->
 
 
 def reuse_reports(manifest: dict, stats: dict, tables: dict, data: dict) -> None:
-    """Reuse verified raw-data, normalization, deduplication, and split tables.
-
-    Args:
-        manifest: Recorded package metadata, statistics, and hashes.
-        stats: Computed aggregate statistics.
-        tables: Named output tables.
-        data: Validated numerical columns from the package.
-    """
+    """Reuse verified raw-data, normalization, deduplication, and split tables."""
     csv_rows = source_table(SOURCES[0], ["파일", "CSV 행 수"])
     for name, rows, difference in csv_rows:
         require(integer(rows) == len(next(iter(data[name.removesuffix(".csv")].values())))
@@ -399,12 +330,7 @@ def reuse_reports(manifest: dict, stats: dict, tables: dict, data: dict) -> None
 
 
 def write_table(path: Path, rows: list[dict]) -> None:
-    """Write a header and BOM, then reread and compare CSV values including quoted newlines.
-
-    Args:
-        path: Filesystem path read or written by this operation.
-        rows: Records to index or serialize.
-    """
+    """Write a header and BOM, then reread and compare CSV values including quoted newlines."""
     require(bool(rows), f"빈 집계표: {path.name}")
     with path.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
@@ -417,23 +343,14 @@ def write_table(path: Path, rows: list[dict]) -> None:
 
 
 def draw_figures(output: Path, stats: dict) -> dict:
-    """Read saved tables and align plotted values and denominators with the figure specification.
-
-    Args:
-        output: Destination file or directory for this operation.
-        stats: Computed aggregate statistics.
-    """
+    """Read saved tables and align plotted values and denominators with the figure specification."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.ticker import StrMethodFormatter
 
     def read(name):
-        """Load the selected numerical CSV columns after schema validation.
-
-        Args:
-            name: Output table basename.
-        """
+        """Read a saved EDA table by its filename stem."""
         with (output / "tables" / f"{name}.csv").open(encoding="utf-8-sig", newline="") as stream:
             return list(csv.DictReader(stream))
 
@@ -486,12 +403,7 @@ def draw_figures(output: Path, stats: dict) -> dict:
 
 
 def analyze(package: Path, output: Path) -> dict:
-    """Validate a package and produce reproducible EDA tables, plots, and metadata.
-
-    Args:
-        package: Directory containing the exported dataset and manifest.
-        output: Destination file or directory for this operation.
-    """
+    """Generate the EDA tables and plots from the verified CSV package."""
     package, output = package.resolve(), output.resolve()
     require(not output.is_relative_to(package) and not package.is_relative_to(output), "출력과 입력 패키지 경로가 겹칩니다")
     check_output_inventory(output, complete=False)

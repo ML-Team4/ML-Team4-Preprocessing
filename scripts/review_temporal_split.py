@@ -13,12 +13,7 @@ TRACK_KEY = "artist_key, recording_key"
 
 
 def build_reference(con, raw: Path) -> None:
-    """Independently derive expected events without using production split labels or normalization helpers.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        raw: Directory containing the raw input files.
-    """
+    """Independently derive expected events without using production split labels or normalization helpers."""
     raw_inputs.bind_raw(con, raw, "review_source")
     con.execute("""CREATE TABLE review_periods AS SELECT * FROM (VALUES
         ('train',       TIMESTAMP '2026-08-17', TIMESTAMP '2026-09-28'),
@@ -49,11 +44,7 @@ def build_reference(con, raw: Path) -> None:
 
 
 def compare_partitions(con) -> dict:
-    """Check half-open UTC interval membership and bidirectional event-key differences.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-    """
+    """Check half-open UTC interval membership and bidirectional event-key differences."""
     membership_errors = con.execute(f"""SELECT count(*) FROM (
         SELECT {EVENT_KEY}
         FROM review_events e LEFT JOIN review_periods p
@@ -88,11 +79,7 @@ def compare_partitions(con) -> dict:
 
 
 def review_cleaning(con) -> dict:
-    """Measure normalization and deduplication effects on the same valid raw rows.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-    """
+    """Measure normalization and deduplication effects on the same valid raw rows."""
     categories = dict(con.execute("SELECT category, count(*) FROM review_rows GROUP BY ALL").fetchall())
     exclusions = {name: categories.get(name, 0)
                   for name in ("missing_required", "outside_window", "empty_name")}
@@ -145,11 +132,7 @@ def review_cleaning(con) -> dict:
 
 
 def review_retention_signals(con) -> dict:
-    """Summarize activity and name flags while preserving the processing population.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-    """
+    """Summarize activity and name flags while preserving the processing population."""
     punctuation = events.base.one(con, r"""WITH items AS (
         SELECT events, regexp_matches(artist_key, '[\p{P}\p{S}]')
             OR regexp_matches(recording_key, '[\p{P}\p{S}]') AS has_punctuation_or_symbol
@@ -177,11 +160,7 @@ def review_retention_signals(con) -> dict:
 
 
 def review_cohort(con) -> dict:
-    """Compare selected user membership, hash order, and training history counts.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-    """
+    """Compare selected user membership, hash order, and training history counts."""
     con.execute(r"""CREATE MACRO review_legacy_name(s) AS
         nfc_normalize(regexp_replace(trim(s), '\s+', ' ', 'g'))""")
     return events.base.one(con, """WITH ranked AS (

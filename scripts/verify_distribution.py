@@ -19,13 +19,7 @@ CSV_NAMES = tuple(f"{name}.csv" for name in (
 
 
 def verify(raw: Path, archive_path: Path, reproduced: Path | None = None) -> dict:
-    """Verify outputs against independent evidence and report the verification result.
-
-    Args:
-        raw: Directory containing the raw input files.
-        archive_path: Bundled ZIP path.
-        reproduced: Optional regenerated dataset directory.
-    """
+    """Check the bundled raw files and ZIP. Compare regenerated CSVs if provided."""
     before = inputs.verify_input_files(raw, inputs.read_reference(raw_inputs.CSV_REFERENCE))
     conversion = json.loads((raw / "distribution_manifest.json").read_text(encoding="utf-8"))
     with inputs.working_connection({"cache_dir": ROOT / ".cache/distribution-check", "threads": 2,

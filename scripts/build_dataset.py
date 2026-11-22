@@ -42,12 +42,7 @@ CSV_FILES = {
 
 
 def build_train_tables(con, train: dict) -> None:
-    """Create deterministic common IDs and training tables from cleaned training relations only.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        train: Training dimensions and counts used for consistency checks.
-    """
+    """Create deterministic common IDs and training tables from cleaned training relations only."""
     if max(train["users"], train["items"]) > np.iinfo(np.int32).max:
         raise ValueError("train 사용자 또는 곡 수가 int32 범위를 초과했습니다")
     con.execute("""CREATE TABLE users AS SELECT
@@ -66,15 +61,7 @@ def build_train_tables(con, train: dict) -> None:
 
 
 def build_evaluation(con, period: str, catalog_size: int, cohort_size: int, events: int) -> dict:
-    """Classify future pairs, apply training catalog and history restrictions, and reconcile eligible targets and exclusions.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        period: Evaluation window name: validation or test.
-        catalog_size: Number of tracks in the training catalog.
-        cohort_size: Number of selected users before evaluation exclusions.
-        events: Cleaned event count for the selected period.
-    """
+    """Build targets for validation or test using the training catalog and history."""
     con.execute(f"""CREATE TABLE {period}_classified AS WITH pairs AS (
         SELECT user_id, artist_key, recording_key, count(*) AS events
         FROM {period}_events GROUP BY ALL)
@@ -136,12 +123,7 @@ def build_evaluation(con, period: str, catalog_size: int, cohort_size: int, even
 
 
 def ordered_batches(con, table: str):
-    """Yield explicitly sorted Arrow batches with at most BATCH_ROWS rows and a fixed schema.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        table: Internal table name from the fixed data contract.
-    """
+    """Yield explicitly sorted Arrow batches with at most BATCH_ROWS rows and a fixed schema."""
     columns, order = CSV_FILES[table]
     schema = pa.schema([pa.field(name, dtype, nullable=False) for name, dtype in columns])
     projection = ", ".join(schema.names)
@@ -150,12 +132,7 @@ def ordered_batches(con, table: str):
 
 
 def read_csv_batches(path: Path, schema: pa.Schema):
-    """Read explicitly typed CSV records and regroup them into fixed-size batches.
-
-    Args:
-        path: Filesystem path read or written by this operation.
-        schema: Expected Arrow column names, types, and nullability.
-    """
+    """Read fixed-size batches using schema for column names and types."""
     with arrow_csv.open_csv(
         path,
         read_options=arrow_csv.ReadOptions(block_size=8 * 1024 * 1024),
@@ -187,12 +164,7 @@ def read_csv_batches(path: Path, schema: pa.Schema):
 
 
 def write_csv(con, staging: Path) -> None:
-    """Write UTF-8 BOM CSVs with correctly quoted commas, quotes, and embedded newlines.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        staging: Isolated temporary directory for an unfinished package.
-    """
+    """Write UTF-8 BOM CSVs with correctly quoted commas, quotes, and embedded newlines."""
     for table in CSV_FILES:
         schema, reader = ordered_batches(con, table)
         with reader, (staging / f"{table}.csv").open("wb") as stream:
@@ -205,35 +177,18 @@ def write_csv(con, staging: Path) -> None:
 
 
 def target_users(con, period: str) -> list[int]:
-    """Return sorted distinct user indices from the selected target relation.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        period: Evaluation window name: validation or test.
-    """
+    """Return sorted distinct user indices from the selected target relation."""
     return [row[0] for row in con.execute(f"""SELECT DISTINCT user_idx
         FROM {period}_targets ORDER BY user_idx""").fetchall()]
 
 
 def fingerprint(path: Path) -> dict:
-    """Return file size and SHA256 digest.
-
-    Args:
-        path: Filesystem path read or written by this operation.
-    """
+    """Return file size and SHA256 digest."""
     return {"bytes": path.stat().st_size, "sha256": base.sha256(path)}
 
 
 def verify_package(con, staging: Path, train: dict, evaluation: dict, copying: dict) -> dict:
-    """Compare saved values, types, and physical order with generated relations and return file metadata.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        staging: Isolated temporary directory for an unfinished package.
-        train: Training dimensions and counts used for consistency checks.
-        evaluation: Per-period eligibility and target statistics.
-        copying: Expected size and hash of the copied data license.
-    """
+    """Compare saved values, types, and physical order with generated relations and return file metadata."""
     expected_rows = {
         "users": train["users"], "items": train["items"],
         "train_interactions": train["user_item_pairs"],
@@ -280,16 +235,9 @@ def verify_package(con, staging: Path, train: dict, evaluation: dict, copying: d
 def build_package(config: Path, output_root: Path, version: str, *,
                   reference_path: Path = common.REFERENCE, expected_users: int = 5000,
                   example_script: Path | None = None, example_variant: str | None = None) -> Path:
-    """Validate inputs, build and verify a staging package, then publish to a new path.
+    """Build and verify the dataset in output_root / version.
 
-    Args:
-        config: TOML configuration file path.
-        output_root: Parent directory for a new versioned package.
-        version: Dataset version and output folder name.
-        reference_path: Path to the fixed input integrity reference.
-        expected_users: Required cohort size; production defaults to 5,000.
-        example_script: Optional consumer example used by synthetic compatibility tests.
-        example_variant: Optional compatibility-example selector.
+    Tests can override the expected cohort and input reference.
     """
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", version):
         raise ValueError("버전은 영문·숫자로 시작하고 영문·숫자·점·밑줄·하이픈만 포함한 1~80자 폴더명이어야 합니다")
@@ -333,18 +281,7 @@ def build_package(config: Path, output_root: Path, version: str, *,
 def build_staged_package(staging: Path, config: Path, settings: dict, version: str,
                          reference_path: Path, expected_users: int, example_script: Path | None,
                          example_variant: str | None) -> None:
-    """Populate the isolated staging directory and assemble its validated manifest.
-
-    Args:
-        staging: Isolated temporary directory for an unfinished package.
-        config: TOML configuration file path.
-        settings: Validated paths and resource limits.
-        version: Dataset version and output folder name.
-        reference_path: Path to the fixed input integrity reference.
-        expected_users: Required cohort size; production defaults to 5,000.
-        example_script: Optional consumer example used by synthetic compatibility tests.
-        example_variant: Optional compatibility-example selector.
-    """
+    """Populate the isolated staging directory and assemble its validated manifest."""
     raw = settings["raw_dir"]
     code_paths = [Path(__file__), Path(common.__file__), Path(base.__file__), Path(raw_inputs.__file__), PACKAGE_README,
                   REPO / "requirements.txt"]

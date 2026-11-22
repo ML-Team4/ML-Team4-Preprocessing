@@ -77,11 +77,7 @@ def fixture_rows(variant):
 
 @contextmanager
 def example_input(rows):
-    """Keep synthetic input files and fixed references alive for the test context.
-
-    Args:
-        rows: Records to index or serialize.
-    """
+    """Keep synthetic input files and fixed references alive for the test context."""
     cohort = sorted({user_id for user_id, *_ in rows})
     with tempfile.TemporaryDirectory(prefix="dataset-input-") as folder:
         fixture = Path(folder)
@@ -139,11 +135,7 @@ def pairs(path):
 
 
 def convert_to_legacy_package(package):
-    """Construct a legacy-format fixture to test backward-compatible validation.
-
-    Args:
-        package: Directory containing the exported dataset and manifest.
-    """
+    """Construct a legacy-format fixture to test backward-compatible validation."""
     manifest_path = package / "dataset_manifest.json"
     manifest = json.loads(manifest_path.read_text())
     matrix = matrix_from_csv(package)

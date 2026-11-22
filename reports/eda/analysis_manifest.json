@@ -129,16 +129,16 @@
       "sha256": "47707e39266476281897cc1c794d1b027f77d67177fc6fabb849140078d795e7"
     },
     "scripts/analyze_listening.py": {
-      "bytes": 30880,
-      "sha256": "4c55396e92754a560a701eeb3976077baaf4162f5cb1f9e309ea7a4faa3a313e"
+      "bytes": 31338,
+      "sha256": "ba0e7f386178c789305aa638246d04ec0388e5308eb5b2ee2712bc1c81d4709e"
     },
     "scripts/verify_listening_analysis.py": {
-      "bytes": 22628,
-      "sha256": "088a47b49bed9b98ace70c6ac6aba774969a310d590f202e294741e10c2476d4"
+      "bytes": 22910,
+      "sha256": "a2644268aa829b1009be6244860d09cfadd2267aefe9ba3cbce69fce50b340a6"
     },
     "requirements.txt": {
-      "bytes": 262,
-      "sha256": "a03a2ee68232c9a693ee5b91b517adec736489c484c01c93bdf9a65d19257dbb"
+      "bytes": 247,
+      "sha256": "e1e033bbe4ff421aec2233660990fa070575a11132db39fe44527bf601560e43"
     }
   },
   "figure_specifications": {

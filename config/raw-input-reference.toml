@@ -1,5 +1,5 @@
-# Fixed input reference established in reports/raw-data-audit.md at commit c28cdd1.
-# Do not regenerate this file when rerunning the audit report.
+# 원본 점검 커밋 c28cdd1의 reports/raw-data-audit.md에서 확정한 입력 기준.
+# 점검 보고서를 다시 생성해도 이 파일은 갱신하지 않는다.
 
 [files."listens_8weeks_5000users.parquet"]
 bytes = 144828609

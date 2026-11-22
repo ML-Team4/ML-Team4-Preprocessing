@@ -33,12 +33,7 @@ SCHEMAS = {
 
 
 def build_expected_train(con, raw: Path) -> tuple[list[dict], dict, dict]:
-    """Independently derive cleaned training records, statistics, and sorted common IDs.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        raw: Directory containing the raw input files.
-    """
+    """Independently derive cleaned training records, statistics, and sorted common IDs."""
     build_reference(con, raw)
     con.execute("""CREATE VIEW expected_events AS SELECT e.*, p.period FROM review_events e
         JOIN review_periods p ON e.listened_at >= p.start_utc AND e.listened_at < p.end_utc""")
@@ -90,13 +85,7 @@ def build_expected_train(con, raw: Path) -> tuple[list[dict], dict, dict]:
 
 
 def build_expected_evaluation(con, period: str, catalog_size: int) -> dict:
-    """Apply the original training catalog and histories to distinct future-period pairs.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        period: Evaluation window name: validation or test.
-        catalog_size: Number of tracks in the training catalog.
-    """
+    """Apply the original training catalog and histories to distinct future-period pairs."""
     pairs = f"expected_{period}_pairs"
     users = f"expected_{period}_eligibility"
     con.execute(f"""CREATE TABLE {pairs} AS WITH heard AS (
@@ -156,14 +145,7 @@ def build_expected_evaluation(con, period: str, catalog_size: int) -> dict:
 
 
 def compare_sets(con, expected: str, actual: str, columns: list[str]) -> dict:
-    """Compare unique relations in both directions and return aggregate differences.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        expected: Required values or keys.
-        actual: Observed values to validate.
-        columns: Ordered columns to compare.
-    """
+    """Compare unique relations in both directions and return aggregate differences."""
     key = ", ".join(columns)
     return one(con, f"""SELECT
         (SELECT count(*) FROM {expected} ANTI JOIN {actual} USING ({key})) AS missing,
@@ -171,27 +153,14 @@ def compare_sets(con, expected: str, actual: str, columns: list[str]) -> dict:
 
 
 def require_metadata(actual: dict, expected: dict, label: str) -> None:
-    """Check required metadata fields, types, and values while permitting supported extra fields.
-
-    Args:
-        actual: Observed values to validate.
-        expected: Required values or keys.
-        label: Human-readable name used in validation errors.
-    """
+    """Check required metadata fields, types, and values while permitting supported extra fields."""
     for key, value in expected.items():
         if key not in actual or type(actual[key]) is not type(value) or actual[key] != value:
             raise ValueError(f"{label}의 manifest 필드가 다릅니다: {key}")
 
 
 def read_parquet(con, package: Path, table: str, entry: dict) -> dict:
-    """Check stored Arrow types, nulls, physical order, and all rows against independent expectations.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        package: Directory containing the exported dataset and manifest.
-        table: Internal table name from the fixed data contract.
-        entry: Manifest metadata for the selected file.
-    """
+    """Check stored Arrow types, nulls, physical order, and all rows against independent expectations."""
     path = package / f"{table}.parquet"
     fields, order = SCHEMAS[table]
     schema = pa.schema([pa.field(name, dtype, nullable=False) for name, dtype in fields])
@@ -226,14 +195,7 @@ def read_parquet(con, package: Path, table: str, entry: dict) -> dict:
 
 
 def read_csv(con, package: Path, table: str, entry: dict) -> dict:
-    """Read every CSV row with explicit types and compare ordering and independent expected values.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        package: Directory containing the exported dataset and manifest.
-        table: Internal table name from the fixed data contract.
-        entry: Manifest metadata for the selected file.
-    """
+    """Read every CSV row with explicit types and compare ordering and independent expected values."""
     path = package / f"{table}.csv"
     fields, order = SCHEMAS[table]
     schema = pa.schema([pa.field(name, dtype, nullable=False) for name, dtype in fields])
@@ -281,15 +243,7 @@ def read_csv(con, package: Path, table: str, entry: dict) -> dict:
 
 def read_evaluation_users(con, package: Path, period: str, entry: dict, *,
                           encoding: str = "UTF-8") -> dict:
-    """Check the saved evaluation user list against independently derived eligible users.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        package: Directory containing the exported dataset and manifest.
-        period: Evaluation window name: validation or test.
-        entry: Manifest metadata for the selected file.
-        encoding: Text encoding for the saved evaluation-user CSV.
-    """
+    """Check the saved evaluation user list against independently derived eligible users."""
     path = package / f"{period}_users.csv"
     require_metadata(entry, {
         "columns": {"user_idx": "decimal int32"}, "column_order": ["user_idx"],
@@ -325,14 +279,7 @@ def read_evaluation_users(con, package: Path, period: str, entry: dict, *,
 
 
 def read_csr(con, path: Path, train: dict, entry: dict) -> dict:
-    """Validate stored CSR arrays before loading and compare every training coordinate and count.
-
-    Args:
-        con: Open DuckDB connection holding the working SQL relations.
-        path: Filesystem path read or written by this operation.
-        train: Training dimensions and counts used for consistency checks.
-        entry: Manifest metadata for the selected file.
-    """
+    """Validate stored CSR arrays before loading and compare every training coordinate and count."""
     shape = (train["users"], train["items"])
     nnz = train["user_item_pairs"]
     require_metadata(entry, {
@@ -384,12 +331,7 @@ def read_csr(con, path: Path, train: dict, entry: dict) -> dict:
 
 
 def package_fingerprints(package: Path, manifest: dict) -> dict:
-    """Verify every manifest-listed file size and digest.
-
-    Args:
-        package: Directory containing the exported dataset and manifest.
-        manifest: Recorded package metadata, statistics, and hashes.
-    """
+    """Verify every manifest-listed file size and digest."""
     extension = "csv" if manifest["contract_version"] == "2.0.0" else "parquet"
     names = {f"{name}.{extension}" for name in SCHEMAS} | {
         "validation_users.csv", "test_users.csv", "README.md", "COPYING"}
@@ -407,13 +349,7 @@ def package_fingerprints(package: Path, manifest: dict) -> dict:
 
 
 def verify_manifest_metadata(manifest: dict, raw: Path, reference_path: Path) -> None:
-    """Check source provenance and required code-fingerprint metadata against bundled records.
-
-    Args:
-        manifest: Recorded package metadata, statistics, and hashes.
-        raw: Directory containing the raw input files.
-        reference_path: Path to the fixed input integrity reference.
-    """
+    """Check source provenance and required code-fingerprint metadata against bundled records."""
     source = json.loads((raw / "source_manifest.json").read_text(encoding="utf-8"))
     kind = manifest["source"]["kind"]
     if kind not in ("listenbrainz", "synthetic_example"):
@@ -455,12 +391,7 @@ def validate_dataset(config: Path, package: Path, *, manifest_sha256: str | None
                      reference_path: Path = inputs.REFERENCE, expected_users: int = 5000) -> dict:
     """Independently validate a package against raw events and return aggregate differences.
 
-    Args:
-        config: TOML configuration file path.
-        package: Directory containing the exported dataset and manifest.
-        manifest_sha256: Optional independently recorded expected manifest digest.
-        reference_path: Path to the fixed input integrity reference.
-        expected_users: Required cohort size; production defaults to 5,000.
+    If supplied, manifest_sha256 pins the exact manifest before row checks.
     """
     package = package.resolve()
     settings = inputs.read_settings(config)

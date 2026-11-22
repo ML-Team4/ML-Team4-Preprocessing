@@ -22,11 +22,7 @@ SCHEMAS = {
 
 
 def load_dataset(data_dir: Path) -> dict:
-    """Verify file integrity, load all seven CSVs, and check sparse coordinates, popularity, and target links.
-
-    Args:
-        data_dir: Directory containing the seven shared CSVs.
-    """
+    """Verify file integrity, load all seven CSVs, and check sparse coordinates, popularity, and target links."""
     manifest = json.loads((data_dir / "dataset_manifest.json").read_text(encoding="utf-8"))
     for name, entry in manifest["files"].items():
         path = data_dir / name
